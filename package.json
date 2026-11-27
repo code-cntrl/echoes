@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.js\"",
     "screenshots": "node scripts/screenshots.mjs",
     "test:browser": "node scripts/theme-check.mjs",
     "vendor": "node scripts/vendor.mjs",
