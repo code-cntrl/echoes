@@ -41,7 +41,23 @@ export function renderSetup() {
       </form>
     </section>`;
   if (!isDevice()) {
-    app.innerHTML = setup;
+    // A family already using a phone as its home base can move here with everything it has, so
+    // messages arrive without syncing by hand (and nothing leaves the home).
+    const move = `
+    <section class="stack narrow move-in">
+      <span class="label">Moving from a home-base phone?</span>
+      <div class="card stack">
+        <p class="m-0">Bring your family here with all its messages. From then on messages arrive on their own while you’re on the home Wi-Fi, and everything stays in your home.</p>
+        <ol class="tips">
+          <li>Sync every linked phone with the home base one last time.</li>
+          <li>On the home base, open <strong>Family → Download backup</strong>. It saves a file (on an iPhone, in Files).</li>
+          <li>Choose that file here, on the home base or on this computer.</li>
+          <li>Then sign in, and send everyone an invite from <strong>Family</strong>. PINs stay the same.</li>
+        </ol>
+        <div><label class="btn file-btn">${icon('upload')} Choose the backup file<input type="file" accept="application/json,.json" data-action="setup-restore" hidden></label></div>
+      </div>
+    </section>`;
+    app.innerHTML = setup + move;
     return;
   }
   // A phone that was linked before most likely wants to be linked again, not start a new family;

@@ -98,10 +98,10 @@ async function setUpFamily(page) {
   await add.locator('input[name="name"]').fill('Sam');
   await add.locator('select[name="role"]').selectOption('kid');
   await add.locator('button[type="submit"]').click();
-  await page.locator('li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).waitFor();
+  await page.locator('.people li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).waitFor();
 }
 async function linkSam(page) {
-  await page.locator('li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).click();
+  await page.locator('.people li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).click();
   await page.waitForURL(/#\/sync$/);
   await page.locator('#sync-status.error').waitFor();
 }
@@ -130,7 +130,7 @@ for (const [engine, type, launch] of [['Edge', chromium, { channel: 'msedge' }],
     await setUpFamily(page);
     check(await page.evaluate(() => document.documentElement.dataset.themeFamily === 'messages'), `${engine}: the theme still applies`);
     await page.reload();
-    await page.locator('li', { hasText: 'Sam' }).or(page.locator('.tile', { hasText: 'Sam' })).or(page.locator('#nav a')).first().waitFor();
+    await page.locator('.people li', { hasText: 'Sam' }).or(page.locator('.tile', { hasText: 'Sam' })).or(page.locator('#nav a')).first().waitFor();
     check(await page.locator('form[data-form="setup"]').count() === 0 && (await page.locator('#family-name').innerText()) === 'The Riveras', `${engine}: without them the family is saved and still there after a reload`);
     await page.goto(`${APP}#/family`);
     await linkSam(page);

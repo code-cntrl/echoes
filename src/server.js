@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { pbkdf2Sync, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,7 @@ const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const PUBLIC_DIR = join(ROOT, 'public');
 const COOKIE = 'ff_session';
 const MAX_BODY = 512 * 1024;
+const MAX_RESTORE = 32 * 1024 * 1024; // a family's backup, brought in once while the hub is empty
 const INVITE_DAYS = 7;
 const SESSION_DAYS = 365;
 const MAX_SESSIONS = 20; // per person: phones, a laptop, a few browsers
@@ -39,13 +40,24 @@ const SECURITY_HEADERS = {
 };
 
 // ---------- PINs (scrypt) ----------
+// A family brought in from a home-base phone keeps its PINs, which the browser made with PBKDF2
+// (public/local-backend.js); those are checked as they are. New PINs use scrypt.
 const pins = {
   async hash(pin) {
     const salt = randomBytes(16);
     return `scrypt$${salt.toString('hex')}$${scryptSync(pin, salt, 32).toString('hex')}`;
   },
   async verify(pin, stored) {
-    const [kind, saltHex, hashHex] = String(stored).split('$');
+    const parts = String(stored).split('$');
+    if (parts[0] === 'pbkdf2') {
+      const [, iter, saltHex, hashHex] = parts;
+      const iterations = Number(iter);
+      const expected = Buffer.from(hashHex || '', 'hex');
+      // Bounded, so a crafted backup can't make each sign-in take minutes.
+      if (!Number.isInteger(iterations) || iterations < 1000 || iterations > 2_000_000 || expected.length !== 32) return false;
+      return timingSafeEqual(pbkdf2Sync(pin, Buffer.from(saltHex, 'hex'), iterations, 32, 'sha256'), expected);
+    }
+    const [kind, saltHex, hashHex] = parts;
     if (kind !== 'scrypt') return false;
     const expected = Buffer.from(hashHex, 'hex');
     return timingSafeEqual(scryptSync(pin, Buffer.from(saltHex, 'hex'), expected.length), expected);
@@ -81,7 +93,7 @@ function parseCookies(header = '') {
   return out;
 }
 
-async function readJson(req) {
+async function readJson(req, limit = MAX_BODY) {
   if (req.method === 'GET' || req.method === 'HEAD') return {};
   // Requiring JSON blocks simple cross-site form posts (together with SameSite=Strict cookies).
   if (!(req.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Expected application/json.');
@@ -89,7 +101,7 @@ async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY) throw new HttpError(413, 'Request too large.');
+    if (size > limit) throw new HttpError(413, 'Request too large.');
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
@@ -331,7 +343,9 @@ export function createApp({
     try {
       if (pathname.startsWith('/api/')) {
         if (!allowedHost(req.headers.host)) throw new HttpError(421, 'This hub only answers on its home-network address.');
-        const body = await readJson(req);
+        // Only an empty hub takes a whole family's backup; everything else stays small.
+        const big = pathname === '/api/setup-restore' && req.method === 'POST' && !store.listMembers().length;
+        const body = await readJson(req, big ? MAX_RESTORE : MAX_BODY);
         return send(res, 200, await hubRoute(req.method, pathname, body, contextFor(req, res), req));
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Method not allowed.');

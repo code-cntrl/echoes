@@ -454,6 +454,18 @@ export const changeActions = {
     saveDraft();
     renderGive();
   },
+  // A new hub, started from a home-base phone's backup (see renderSetup).
+  async 'setup-restore'(el) {
+    const file = el.files?.[0];
+    if (!file) return;
+    el.value = '';
+    let data;
+    try { data = JSON.parse(await file.text()); } catch { throw new Error('That file is not an Echoes backup.'); }
+    const res = await api('POST', '/api/setup-restore', data);
+    toast(`${res.family} moved here: ${plural(res.members, 'person', 'people')} and ${plural(res.messages, 'message')}. Sign in to carry on.`);
+    location.hash = '';
+    await refresh();
+  },
   async restore(el) {
     const file = el.files?.[0];
     if (!file) return;

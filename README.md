@@ -24,6 +24,14 @@ Apple's or Google's push service; messages still never leave home.)
 The last two are the same setup: a device that keeps the family is the **home base**.
 Others can use it in turn, link their own phone to it, or both.
 
+**Why phones can't sync on their own.** With no hub, the home-base phone is the family's post
+office, and each phone's messages wait until it meets the home base and the two scan each other's
+codes. iPhone web apps can't find each other on the Wi-Fi, accept connections or run in the
+background, so there is no way for two phones to swap messages by themselves. To keep everything
+at home and still have messages arrive on their own, a device that stays on at home has to carry
+them: the **home hub**. A family already using a phone can move to one without starting over: see
+[Moving from a home-base phone](#moving-from-a-home-base-phone).
+
 ## Quick start (a phone as home base)
 
 > **Experimental.** This mode has been tested between browsers on one computer, not yet
@@ -225,6 +233,24 @@ warns you when you try to invite a phone.
 
 Do not expose the hub to the internet: it is designed for a trusted home network.
 For notifications on phones, start it with `npm run start:https` instead (next section).
+
+### Moving from a home-base phone
+
+A family that started on a phone (for example from GitHub Pages) can bring everything to a new
+hub, so messages arrive on their own and still never leave the home:
+
+1. Start the hub on a computer that stays on (above), with no family set up yet.
+2. Sync every linked phone with the home base one last time, so nothing is left waiting.
+3. On the home base, open **Family → Download backup**. On an iPhone the file goes to Files.
+   (**Family → Messages without syncing by hand** on the home base has these steps too.)
+4. Open the hub's address (on the home base itself, or on the computer) and, under **Moving from a
+   home-base phone?**, choose the file. People, messages, replies, plans and questions all move.
+5. Sign in. PINs stay the same. Then send everyone an invite from **Family** to add their phones.
+   Each person's linked phone was a copy; once they're on the hub, they can unlink it.
+
+Only a hub with no family yet takes a backup, and sign-ins, linked phones and notification
+settings in the file are ignored. The backup holds everyone's messages, so delete the file when
+you're done.
 
 ### Notifications
 
@@ -622,6 +648,7 @@ npm run test:iphone    # headless WebKit (Safari's engine) at iPhone 15 size: hu
 npm run test:conversation  # two iPhones (WebKit) talk to each other through the hub, start to finish
 npm run test:get-echoes    # headless Edge: the Get Echoes code on the home base, and where #/link leads
 npm run test:boot      # Edge and WebKit: start-up on older or broken browsers, and the fallbacks
+npm run test:move      # headless Edge: a home-base phone's family moves to a new hub, PINs included
 npm run iphone         # an iPhone-sized WebKit window on the hub, to try it by hand (see above)
 npm run start:https    # the home hub over https, for notifications (see Notifications)
 npm run serve:https    # https test copy on this computer for real iPhones (see above)
@@ -727,6 +754,14 @@ picture), with no camera or sync code until **Next**, then the sync code as befo
 `#/link` leads: iPhone Safari to the Add to Home Screen steps, an iPhone Home Screen app and a
 Chromebook straight to Link this phone, a device with a family to the app as usual. It writes boards
 to `screenshots/get-echoes`. `npm run test:peer` follows the whole path with two phones over WebRTC.
+
+`npm run test:move` needs Edge. A family is set up on a phone (static files, IndexedDB) with a PIN,
+Mom writes to Sam, and Family explains why phones can't sync on their own and how to move. The
+backup is downloaded and chosen on a new hub's first screen (a file that isn't a backup is
+refused first). Everyone and the message arrive, Mom's PIN from the phone works (a wrong one
+doesn't), and Sam is welcomed and finds Mom's message. `test/move.test.js` checks the same rules
+directly, plus that a planted sign-in in the file is ignored, an absurd PIN setting is refused,
+ids never repeat, and only an empty hub takes a backup. Boards go to `screenshots/move`.
 
 `npm run test:boot` needs Edge and Playwright's WebKit. It checks `public/boot.js`, the classic
 script that runs first. With structuredClone, Object.hasOwn, `.at()`, Web Locks, Intl.Segmenter

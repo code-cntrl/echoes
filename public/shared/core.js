@@ -172,6 +172,15 @@ export function checkAnswer({ ask, recipients, model, anonymous }) {
   }
 }
 
+/** The family document inside a backup file (Download backup on a home base or shared device). */
+function backupDoc(body) {
+  const doc = body?.doc;
+  if (body?.app !== 'family-feedback' || !doc || typeof doc !== 'object' || !Array.isArray(doc.members) || !doc.members.some((m) => m?.isParent)) {
+    throw new HttpError(400, 'That file is not an Echoes backup.');
+  }
+  return doc;
+}
+
 const brief = (m) => (m ? { id: m.id, name: m.name, emoji: m.emoji } : null);
 const newestFirst = (a, b) => (b.createdAt.localeCompare(a.createdAt)) || (b.id - a.id);
 
@@ -380,6 +389,33 @@ export function createCore({
     const id = await store.insertMember({ pinHash: null, ...m, createdAt: iso(), welcomedAt: iso() });
     await ctx.signIn(id);
     return state(store.getMember(id));
+  });
+
+  // A new family space can start from a backup instead: a family moving from a home-base phone to a
+  // home hub, so messages flow without syncing by hand (or to a new shared device). Like setup, only
+  // before anyone is here. Sign-ins, invites, linked phones and notification keys belong to the
+  // place, not the family: the file's are dropped and this one's kept.
+  route('POST', /^\/api\/setup-restore$/, async ({ ctx, body }) => {
+    if (store.listMembers().length) throw new HttpError(409, 'Family is already set up.');
+    const { hub, ...doc } = backupDoc(body);
+    // Counters stay past every id in the file (anonymous messages use random ids past 1e9), so
+    // nothing new ever takes an old id.
+    const list = (key) => (Array.isArray(doc[key]) ? doc[key] : []);
+    const top = (rows, key = 'id') => rows.reduce((n, x) => { const v = Number(x?.[key]); return v > n && v < 1e9 ? v : n; }, 0);
+    const seq = doc.seq && typeof doc.seq === 'object' ? doc.seq : {};
+    doc.seq = {
+      ...seq,
+      member: Math.max(Number(seq.member) || 0, top(list('members'))),
+      feedback: Math.max(Number(seq.feedback) || 0, top(list('feedback'))),
+      group: Math.max(Number(seq.group) || 0, top(list('feedback'), 'groupId')),
+      plan: Math.max(Number(seq.plan) || 0, top(list('plans'))),
+      ask: Math.max(Number(seq.ask) || 0, top(list('asks'))),
+    };
+    await store.replace({ ...doc, hub: store.raw().hub });
+    const held = nextHeld();
+    if (held) onHold(held);
+    await ctx.signOut?.();
+    return { ok: true, family: family().name, members: store.listMembers().length, messages: store.raw().feedback.length };
   });
 
   route('POST', /^\/api\/login$/, async ({ ctx, body }) => {
@@ -751,10 +787,7 @@ export function createCore({
     });
     route('POST', /^\/api\/restore$/, async ({ ctx, body }) => {
       requireParent(ctx);
-      const doc = body?.doc;
-      if (body?.app !== 'family-feedback' || !doc || !Array.isArray(doc.members) || !doc.members.some((m) => m.isParent)) {
-        throw new HttpError(400, 'That file is not an Echoes backup.');
-      }
+      const doc = backupDoc(body);
       await store.replace(doc);
       await ctx.signOut();
       return { ok: true };

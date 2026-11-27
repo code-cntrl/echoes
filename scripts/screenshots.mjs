@@ -182,7 +182,7 @@ const staticUrl = await listen(staticHost);
   await page.locator('[data-form="add-member"] select[name="role"]').selectOption('kid');
   await page.locator('[data-form="add-member"] button[type="submit"]').click();
   await page.locator('.people li', { hasText: 'Lily' }).waitFor();
-  await page.getByText('Download backup').waitFor();
+  await page.getByRole('button', { name: 'Download backup' }).waitFor();
   await page.locator('#me').getByRole('button', { name: 'Switch' }).click();
   await page.locator('.tile', { hasText: 'Lily' }).click();
   await page.getByRole('button', { name: /I promise/ }).click();

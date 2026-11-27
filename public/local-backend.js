@@ -54,7 +54,8 @@ async function derive(pin, salt, iterations) {
   return toHex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256));
 }
 
-const pins = {
+// Exported for the test that moves a family from a home-base phone to a hub (test/move.test.js).
+export const pins = {
   async hash(pin) {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     return `pbkdf2$${PBKDF2_ITERATIONS}$${toHex(salt)}$${await derive(pin, salt, PBKDF2_ITERATIONS)}`;

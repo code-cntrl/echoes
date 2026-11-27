@@ -69,7 +69,7 @@ async function homeBaseAtGet(page) {
   await add.locator('input[name="name"]').fill('Sam');
   await add.locator('select[name="role"]').selectOption('kid');
   await add.locator('button[type="submit"]').click();
-  await page.locator('li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).click();
+  await page.locator('.people li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).click();
   await page.waitForURL(/#\/sync$/);
   await page.locator('#sync-get:not([hidden]) img').waitFor();
   await page.waitForFunction(() => document.querySelector('#sync-get img')?.complete);

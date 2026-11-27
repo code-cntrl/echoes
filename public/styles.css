@@ -459,6 +459,9 @@ button.item:hover, a.item:hover { background: var(--surface-2); filter: none; te
 .empty h1 { font-size: 1.375rem; letter-spacing: -0.02em; }
 .empty p { max-width: 26rem; margin-left: auto; margin-right: auto; }
 .boot-fail .boot-why { overflow-wrap: anywhere; margin-top: 1.5rem; } /* boot.js: what to tell whoever set it up */
+/* A new hub's first screen: bringing a home-base family in, set apart from starting a new one. */
+.move-in { margin-top: 2.25rem; }
+.move-out summary { font-weight: 600; cursor: pointer; }
 .empty.card { background: none; }
 
 .tips { margin: 0; padding-left: 1.15rem; }

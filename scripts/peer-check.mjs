@@ -255,7 +255,7 @@ try {
 
   // ---------- a second device for Sam: his iPad ----------
   await go(home, '#/family');
-  await home.locator('li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).click();
+  await home.locator('.people li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).click();
   await home.waitForURL(/#\/sync$/);
   await home.getByRole('button', { name: 'Next', exact: true }).click();
   const ipad = await phone('sam-ipad', { homeScreen: true, ipad: true });
@@ -276,7 +276,7 @@ try {
   await shot(ipad, 'ipad-sent');
   await home.click('[data-action="sync-done"]');
   await go(home, '#/family');
-  const samRow = home.locator('li', { hasText: 'Sam' });
+  const samRow = home.locator('.people li', { hasText: 'Sam' });
   check(/2 phones linked/.test(await samRow.innerText()) && await samRow.getByRole('button', { name: 'Unlink 2 phones' }).isVisible(), 'Family shows Sam has 2 phones linked');
   await home.waitForFunction(() => !document.getElementById('toast')?.classList.contains('show'), null, { timeout: 8000 }).catch(() => {});
   await shotSizes(home, 'family-two-devices');
@@ -320,7 +320,7 @@ try {
   await addDad.locator('input[name="name"]').fill('Dad');
   await addDad.locator('input[name="pin"]').fill('8642');
   await addDad.locator('button[type="submit"]').click();
-  await home.locator('li', { hasText: 'Dad' }).getByRole('button', { name: 'Link phone', exact: true }).click();
+  await home.locator('.people li', { hasText: 'Dad' }).getByRole('button', { name: 'Link phone', exact: true }).click();
   await home.locator('#link-pin').fill('1111');
   await home.locator('form[data-form="link-pin"] button[type="submit"]').click();
   await home.locator('#link-pin-panel .notice.error').waitFor();

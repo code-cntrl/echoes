@@ -5,7 +5,7 @@ import { HttpError, isActive, publicMember } from './core.js';
 
 // A linked phone acts for one person only. Signing in, setting up and backups stay on the home base.
 const BLOCKED = [
-  ['POST', /^\/api\/(setup|login|logout|restore|join|invites)$/],
+  ['POST', /^\/api\/(setup|setup-restore|login|logout|restore|join|invites)$/],
   ['GET', /^\/api\/backup$/],
 ];
 

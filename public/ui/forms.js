@@ -20,7 +20,9 @@ export const forms = {
       familyName: d.get('familyName'), name: d.get('name'), emoji: ui.setupEmoji,
       pin: d.get('pin') || undefined, allowAnonymous: d.get('allowAnonymous') === 'on',
     });
-    location.hash = '#/family';
+    // refresh() draws Family. Setting location.hash would also fire hashchange and draw it again a
+    // moment later, wiping whatever the parent had started typing in Add someone.
+    history.replaceState(null, '', '#/family');
     localStorage.removeItem('ff-was-linked');
     await refresh();
     toast(isDevice() ? 'Welcome! Now add your family.' : 'Welcome! Now add and invite your family.');

@@ -28,7 +28,8 @@
     "iphone": "node scripts/iphone.mjs",
     "test:conversation": "node scripts/conversation-check.mjs",
     "test:get-echoes": "node scripts/get-echoes-check.mjs",
-    "test:boot": "node scripts/boot-check.mjs"
+    "test:boot": "node scripts/boot-check.mjs",
+    "test:move": "node scripts/move-check.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.65.1"

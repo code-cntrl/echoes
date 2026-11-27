@@ -88,7 +88,17 @@ export function storageCard() {
       <li><label class="item file-btn"><span class="icon-sq">${icon('upload')}</span><span class="grow title">Restore backup</span>${icon('chevron', 'chev')}<input type="file" accept="application/json,.json" data-action="restore" hidden></label></li>` : ''}
     </ul>
     <p class="footnote">Everything lives in this browser on this device.${platform() === 'ios' ? ' Keep it on your Home Screen so iOS doesn’t clear it.' : ''}
-      Others can use it here, or link their own phone and sync when they’re nearby. Back up now and then: the file holds everyone’s messages, so keep it private.</p>`;
+      Others can use it here, or link their own phone and sync when they’re nearby. Back up now and then: the file holds everyone’s messages, so keep it private.</p>
+    ${S.me.isParent ? `<details class="card move-out">
+      <summary>Messages without syncing by hand</summary>
+      <p class="small">Phones can’t pass messages to each other on their own: iPhones don’t let web apps find each other or run in the background. To keep everything at home and still have messages arrive by themselves, let a computer that stays on at home be your family’s <strong>home hub</strong>, and bring your family there:</p>
+      <ol class="tips small">
+        <li>On the computer, start the hub (see the README, “Quick start (home hub)”).</li>
+        <li>Sync every linked phone with this one a last time, then tap <strong>Download backup</strong> above.</li>
+        <li>Open the hub’s address here, choose <strong>Moving from a home-base phone?</strong> and pick the file.</li>
+        <li>Sign in and send everyone an invite from Family. PINs stay the same.</li>
+      </ol>
+    </details>` : ''}`;
 }
 
 export function renderFamily() {

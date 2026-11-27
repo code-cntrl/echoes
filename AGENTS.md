@@ -33,6 +33,10 @@
   questions load that way). Answers go to exactly those people, together. The asker sees who
   answered or how many, never the answers (`myAsks` counts delivered messages across them, one per
   group). Keep `checkAsk`/`checkAnswer` in `core.js` and their twins in `peer-client.js` in step.
+- **Moving to a hub.** `POST /api/setup-restore` lets an empty hub start from a home-base backup.
+  The hub keeps its own `doc.hub` (sign-ins, invites, peers, push), fixes `seq` past every id,
+  and checks PBKDF2 PINs from phones (bounded iterations) as well as its own scrypt ones. Only an
+  empty hub reads a big body (`MAX_RESTORE`); everything else stays at `MAX_BODY`.
 - **Line endings:** most files use CRLF. Keep them when editing.
 - **The old name.** The app was called Family Feedback. Names nobody sees keep it so existing data
   keeps working: the IndexedDB database (`family-feedback`), the backup file's `app` marker, the
@@ -44,7 +48,7 @@
 - **Checks** (browser ones use headless Microsoft Edge):
   `npm test`, `npm run test:browser`, `npm run test:layout`, `npm run test:plans`,
   `npm run test:peer`, `npm run test:push`, `npm run test:privacy`, `npm run test:stress`, `npm run test:asks`, `npm run test:styles`,
-  `npm run test:get-echoes`, `npm run test:boot` (Edge and WebKit), `npm run test:iphone` and `npm run test:conversation` (WebKit; install it once with
+  `npm run test:get-echoes`, `npm run test:move`, `npm run test:boot` (Edge and WebKit), `npm run test:iphone` and `npm run test:conversation` (WebKit; install it once with
   `node node_modules/playwright-core/cli.js install webkit`),
   `npm run screenshots`.
 - **Notifications** (`src/push.js`) only ever say "You have something new."; the encrypted
