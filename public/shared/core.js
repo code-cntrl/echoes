@@ -5,7 +5,7 @@ import { checkFields } from './tone.js';
 import { HttpError } from './errors.js';
 import { ANON_ASK_MIN, ASK_HELP, ASK_MAX, helpLabel } from './asks.js';
 import {
-  CALM_REACTIONS, addDays, applyCheckin, applyCheer, applyNoticed, applyShare, applyTick, applyWrap, checkCalm, checkPlan,
+  CALM_REACTIONS, addDays, applyCheckin, applyCheer, applyNoticed, applyShare, applyTick, applyWrap, checkCalm, checkOnePlanPerMessage, checkPlan,
   clientDay, daysBetween, localDate, newPlan, ownerView, plansDue, replyAfter, sharedView, sharedWith,
 } from './plans.js';
 
@@ -610,6 +610,7 @@ export function createCore({
       source = { feedbackId: old.feedbackId, giverId: old.giverId, earliest: old.startDate };
     } else {
       const f = ownedFeedback(ctx, body.feedbackId);
+      checkOnePlanPerMessage(me, store.listPlans().some((p) => p.ownerId === me.id && p.feedbackId === f.id));
       checkCalm(replyAfter(f.readAt || iso(), me.role), now(), 'make a plan');
       // A linked phone may sync days after making the plan; it starts on the phone's day, never before the message.
       source = { feedbackId: f.id, giverId: f.anonymous ? null : f.fromId ?? null, earliest: addDays(f.createdAt.slice(0, 10), -1) };

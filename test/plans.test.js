@@ -175,15 +175,19 @@ test('halfway check-in, then the wrap-up: keep going, finish (asking the giver),
   assert.equal((await fam.by(fam.dad)('GET', '/api/state')).me.plansDue, 0);
   await assert.rejects(fam.by(fam.dad)('POST', `/api/plans/${r}/cheer`, { cheer: 'proud' }), /finished/);
 
+  // One plan per message: the inbox shows the plan made from it, so another needs another message.
+  await assert.rejects(ava('POST', '/api/plans', avaPlan(id)), (e) => e.status === 409 && /already made a plan from this message/.test(e.message));
+  const [id2, id3, id4] = [await opened(fam, fam.dad, fam.ava), await opened(fam, fam.dad, fam.ava), await opened(fam, fam.dad, fam.ava)];
+  fam.clock.advance(31 * MIN);
   // "Change the plan": a new one from the same message, still shared with the same giver.
-  const second = await ava('POST', '/api/plans', avaPlan(id, { days: 7, share: 'giver' }));
+  const second = await ava('POST', '/api/plans', avaPlan(id2, { days: 7, share: 'giver' }));
   fam.clock.advance(6 * DAY);
   await ava('POST', `/api/plans/${second.ref}/wrap`, { outcome: 'change' });
   const third = await ava('POST', '/api/plans', { fromPlanId: second.ref, promise: 'Leave ten minutes earlier', when: 'we have somewhere to be', then: 'set an alarm', heard: 'Same as before.', days: 14, share: 'giver' });
   assert.equal(third.giver.name, 'Dad');
   assert.equal(third.feedbackId, second.feedbackId);
-  await ava('POST', '/api/plans', avaPlan(id));
-  await assert.rejects(ava('POST', '/api/plans', avaPlan(id)), /two plans going/);
+  await ava('POST', '/api/plans', avaPlan(id3));
+  await assert.rejects(ava('POST', '/api/plans', avaPlan(id4)), /two plans going/);
 });
 
 test('the giver is told each time they are asked afresh whether they’ve noticed a difference', async () => {
@@ -339,10 +343,13 @@ test('apart, cheering and answering “noticed?” queue; a refused plan is kept
   assert.equal(fam.store.getPlan(plan.id).cheers.length, 1);
 
   // Ava's phone makes a plan apart, but on the home base she already has two going: it's refused.
+  const [id2, id3] = [await opened(fam, fam.dad, fam.ava), await opened(fam, fam.dad, fam.ava)];
+  fam.clock.advance(31 * MIN);
   const avaPhone = await linkedPhone(fam, fam.ava);
   avaPhone.client.disconnected();
-  await avaPhone.api('POST', '/api/plans', avaPlan(id));
-  await fam.by(fam.ava)('POST', '/api/plans', avaPlan(id));
+  await assert.rejects(avaPhone.api('POST', '/api/plans', avaPlan(id)), /already made a plan from this message/, 'one plan per message, apart too');
+  await avaPhone.api('POST', '/api/plans', avaPlan(id2));
+  await fam.by(fam.ava)('POST', '/api/plans', avaPlan(id3));
   const r = await avaPhone.sync();
   assert.equal(r.failed.length, 1);
   const { failed } = await avaPhone.api('GET', '/api/plans');
@@ -417,10 +424,11 @@ test('cheers made apart on different days all arrive, each counted for its own d
 test('“keep going” gives a full new round, even when the wrap-up comes late', async () => {
   const fam = await family();
   const id = await opened(fam, fam.dad, fam.ava);
+  const id2 = await opened(fam, fam.dad, fam.ava);
   fam.clock.advance(31 * MIN);
   const ava = fam.by(fam.ava);
   const onTime = await ava('POST', '/api/plans', avaPlan(id, { days: 7 }));
-  const late = await ava('POST', '/api/plans', avaPlan(id, { days: 7 }));
+  const late = await ava('POST', '/api/plans', avaPlan(id2, { days: 7 }));
   fam.clock.advance(6 * DAY); // the last day
   const a = await ava('POST', `/api/plans/${onTime.ref}/wrap`, { outcome: 'keep' });
   assert.equal(a.roundStart, addDays(fam.clock.today(), 1), 'the next round starts tomorrow');

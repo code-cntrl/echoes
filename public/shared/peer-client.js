@@ -6,7 +6,7 @@ import { getModel } from './models.js';
 import { helpLabel } from './asks.js';
 import {
   CALM_REACTIONS, KID_PROMISES, addDays, applyCheckin, applyCheer, applyNoticed, applyShare, applyTick, applyWrap,
-  checkCalm, checkPlan, clientDay, localDate, newPlan, plansDue, replyAfter,
+  checkCalm, checkOnePlanPerMessage, checkPlan, clientDay, localDate, newPlan, plansDue, replyAfter,
 } from './plans.js';
 
 // A plan is named by its id, or, if this phone made it while apart, by "c" and the id it gave it.
@@ -230,6 +230,7 @@ export async function createPeerClient({ storage, now = () => new Date() }) {
       } else {
         const f = rec.cache.inbox.find((x) => x.id === Number(body.feedbackId));
         if (!f) throw new HttpError(404, 'Feedback not found.');
+        checkOnePlanPerMessage(me, !!f.planRef);
         const until = f.read ? f.replyAfter : replyAfter(at, me.role);
         if (until) checkCalm(until, now(), 'make a plan');
         source = { feedbackId: f.id, giverId: f.anonymous ? null : f.from?.id ?? null, earliest: addDays(f.createdAt.slice(0, 10), -1) };

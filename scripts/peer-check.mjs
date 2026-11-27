@@ -1,4 +1,5 @@
 // Two phones, no server: a home base phone and a linked phone sync in headless Microsoft Edge.
+// Then Sam links his iPad too: one person, two devices, the same inbox.
 // The app is served as plain static files from a sub-path (like GitHub Pages), with no /api.
 // Each phone has its own browser profile. Codes are read from the on-screen QR codes and pasted
 // into the other phone (headless browsers have no camera).
@@ -14,6 +15,7 @@ const SHOTS = process.argv[2] ? resolve(process.argv[2]) : null;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const PREFIX = '/echoes/';
 const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const IPAD_UA = 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
 // A static file server like GitHub Pages: everything outside the sub-path, including /api, is a 404 page.
@@ -49,9 +51,10 @@ const browser = await chromium.launch({
   args: process.env.PEER_MDNS ? [] : ['--disable-features=WebRtcHideLocalIpsWithMdns'],
 });
 const errors = [];
+const dialogs = []; // what confirm() asked, by device
 // `homeScreen`: the app opened from the iPhone Home Screen (its own storage, as on iOS), not Safari.
-async function phone(name, { clock = false, homeScreen = false, url = URL_ } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+async function phone(name, { clock = false, homeScreen = false, url = URL_, ipad = false } = {}) {
+  const ctx = await browser.newContext({ viewport: ipad ? { width: 744, height: 900 } : { width: 390, height: 844 }, userAgent: ipad ? IPAD_UA : IPHONE_UA, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
   if (homeScreen) await ctx.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true }));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
@@ -59,7 +62,7 @@ async function phone(name, { clock = false, homeScreen = false, url = URL_ } = {
     // Static hosting has no hub, so the app's first /api/state probe is an expected 404.
     if (m.type() === 'error' && !m.location()?.url?.endsWith('/api/state')) errors.push(`${name} console: ${m.text()}`);
   });
-  page.on('dialog', (d) => d.accept());
+  page.on('dialog', (d) => { dialogs.push(`${name}: ${d.message()}`); d.accept(); });
   if (clock) await page.clock.install(); // lets the test skip ahead to the idle sign-out
   await page.goto(url);
   return page;
@@ -103,6 +106,18 @@ async function shot(page, name) {
   await page.emulateMedia({ colorScheme: 'light' });
 }
 
+// The same screen at phone, foldable/iPad and desktop sizes, then back to the phone.
+async function shotSizes(page, name) {
+  if (!SHOTS) return;
+  for (const [size, viewport] of [['phone', { width: 390, height: 844 }], ['fold', { width: 744, height: 900 }], ['desk', { width: 1440, height: 1000 }]]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shot(page, `${name}-${size}`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+}
+
+// Headings are read with waitFor: the address changes before the hashchange draws the screen.
 // Connects the two phones: home base shows a code, the phone scans it and shows a reply.
 async function connect(home, other) {
   const offer = await shownCode(home);
@@ -131,7 +146,7 @@ try {
   // ---------- linking Sam's phone ----------
   await home.getByRole('button', { name: 'Link phone', exact: true }).nth(1).click();
   await home.waitForURL(/#\/sync$/);
-  check((await home.locator('h1').textContent()).includes('Link Sam’s phone'), 'parent starts linking from Family → Link phone');
+  check(await home.locator('h1', { hasText: 'Link Sam’s phone' }).waitFor({ timeout: 5000 }).then(() => true, () => false), 'parent starts linking from Family → Link phone');
   // First, Get Echoes: a QR code of the app's own address, before any camera or connection.
   const getUrl = await shownCode(home, '#sync-get');
   check(getUrl === `${URL_}#/link`, `the Get Echoes QR opens the app at #/link (${getUrl})`);
@@ -225,7 +240,7 @@ try {
   await home.waitForURL(/#\/sync$/);
   await sam.click('.sync-chip');
   await sam.waitForURL(/#\/sync$/);
-  check((await sam.locator('h1').textContent()).includes('Sync with the home base'), 'the chip opens Sync on the phone');
+  check(await sam.locator('h1', { hasText: 'Sync with the home base' }).waitFor({ timeout: 5000 }).then(() => true, () => false), 'the chip opens Sync on the phone');
   await paste(home, await connect(home, sam));
   await sam.waitForFunction(() => document.getElementById('sync-status')?.textContent.includes('Synced'), null, { timeout: 30_000 });
   check((await status(sam)).includes('1 change sent'), 'sync sends the queued message');
@@ -238,6 +253,35 @@ try {
   await home.waitForFunction(() => document.querySelectorAll('.fb').length === 2);
   check(true, 'Mom’s inbox has both of Sam’s messages');
 
+  // ---------- a second device for Sam: his iPad ----------
+  await go(home, '#/family');
+  await home.locator('li', { hasText: 'Sam' }).getByRole('button', { name: 'Link phone', exact: true }).click();
+  await home.waitForURL(/#\/sync$/);
+  await home.getByRole('button', { name: 'Next', exact: true }).click();
+  const ipad = await phone('sam-ipad', { homeScreen: true, ipad: true });
+  await ipad.waitForSelector('form[data-form="setup"]');
+  await ipad.getByRole('button', { name: 'Link this phone' }).click();
+  await ipad.waitForURL(/#\/sync$/);
+  await paste(home, await connect(home, ipad));
+  await home.waitForFunction(() => document.getElementById('sync-status')?.textContent.includes('Connected to'), null, { timeout: 30_000 });
+  await ipad.waitForFunction(() => document.getElementById('sync-status')?.textContent.includes('Synced'), null, { timeout: 30_000 });
+  check(!(await ipad.locator('form[data-form="welcome"]').count()), 'Sam’s iPad skips the welcome he already saw on his phone');
+  await ipad.getByRole('link', { name: 'Go to my inbox' }).click();
+  await ipad.waitForSelector('.fb');
+  check((await ipad.locator('.fb').first().textContent()).includes('Mom'), 'Sam’s iPad has the same inbox: Mom’s message');
+  await go(ipad, '#/sent');
+  await ipad.waitForFunction(() => document.querySelectorAll('#app .sent-group, #app [data-group]').length >= 2 || /bike ride/.test(document.getElementById('app').textContent));
+  const ipadSent = await ipad.locator('#app').innerText();
+  check(/bike ride/.test(ipadSent) && /Pancakes/.test(ipadSent), 'and the same Sent: both messages Sam sent from his phone');
+  await shot(ipad, 'ipad-sent');
+  await home.click('[data-action="sync-done"]');
+  await go(home, '#/family');
+  const samRow = home.locator('li', { hasText: 'Sam' });
+  check(/2 phones linked/.test(await samRow.innerText()) && await samRow.getByRole('button', { name: 'Unlink 2 phones' }).isVisible(), 'Family shows Sam has 2 phones linked');
+  await home.waitForFunction(() => !document.getElementById('toast')?.classList.contains('show'), null, { timeout: 8000 }).catch(() => {});
+  await shotSizes(home, 'family-two-devices');
+  await go(home, '#/inbox');
+
   // ---------- read offline, then unlink ----------
   await sam.waitForFunction(() => document.querySelector('.sync-chip')?.dataset.state === 'idle');
   await sam.locator('.fb .fb-head').first().click();
@@ -247,14 +291,21 @@ try {
   check(true, 'reading and reacting apart are queued too');
 
   await go(home, '#/family');
-  await home.getByRole('button', { name: 'Unlink 1 phone' }).click();
+  await home.getByRole('button', { name: 'Unlink 2 phones' }).click();
   await home.waitForFunction(() => document.getElementById('toast').textContent.includes('unlinked'));
+  check(dialogs.at(-1)?.startsWith('home: Unlink all 2 of Sam’s phones?') && (await home.locator('#toast').textContent()).includes('Sam’s 2 phones unlinked'), `unlinking says it is both of Sam’s phones (${dialogs.at(-1)})`);
   await home.getByRole('link', { name: 'Sync a linked phone' }).click();
   await home.waitForURL(/#\/sync$/);
   await go(sam, '#/sync');
   await paste(home, await connect(home, sam));
   await sam.waitForFunction(() => document.getElementById('sync-status')?.textContent.includes('isn’t linked'), null, { timeout: 30_000 });
   check(true, 'an unlinked phone is refused by the home base');
+  await home.waitForFunction(() => document.getElementById('sync-status')?.className.includes('error'));
+  await home.click('[data-action="sync-again"]');
+  await go(ipad, '#/sync');
+  await paste(home, await connect(home, ipad));
+  await ipad.waitForFunction(() => document.getElementById('sync-status')?.textContent.includes('isn’t linked'), null, { timeout: 30_000 });
+  check(true, 'and so is Sam’s iPad: unlink removed both');
 
   // A Sync screen left open after it finished must not keep the parent signed in.
   await home.waitForFunction(() => document.getElementById('sync-status')?.className.includes('error'));
@@ -277,7 +328,7 @@ try {
   await home.locator('#link-pin').fill('8642');
   await home.locator('form[data-form="link-pin"] button[type="submit"]').click();
   await home.waitForURL(/#\/sync$/);
-  check((await home.locator('h1').textContent()).includes('Link Dad’s phone'), 'with Dad’s PIN, linking his phone starts');
+  check(await home.locator('h1', { hasText: 'Link Dad’s phone' }).waitFor({ timeout: 5000 }).then(() => true, () => false), 'with Dad’s PIN, linking his phone starts');
   await go(home, '#/family');
 
   // Two windows on one device must not both write the family.

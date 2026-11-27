@@ -248,9 +248,11 @@ export const actions = {
   },
   async 'unlink-phones'(el) {
     const m = memberById(el.dataset.id);
-    if (!confirm(`Unlink ${m.name}’s phone? It won’t be able to sync until a parent links it again.`)) return;
+    const n = m.linkedPhones || 1; // one person can link several (a phone and an iPad, say)
+    const which = n === 1 ? `${m.name}’s phone` : `all ${n} of ${m.name}’s phones`;
+    if (!confirm(`Unlink ${which}? ${n === 1 ? 'It' : 'They'} won’t be able to sync until a parent links ${n === 1 ? 'it' : 'them'} again.`)) return;
     await api('DELETE', `/api/members/${m.id}/phones`);
-    toast(`${m.name}’s phone unlinked`);
+    toast(n === 1 ? `${m.name}’s phone unlinked` : `${m.name}’s ${n} phones unlinked`);
     await refresh();
   },
   async 'unlink-this-phone'() {

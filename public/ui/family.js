@@ -123,7 +123,7 @@ export function renderFamily() {
   const meta = (m) => [
     memberTag(m),
     m.hasPin ? `${icon('lock')} PIN` : '',
-    m.linkedPhones ? `${icon('phone')} linked` : '',
+    m.linkedPhones ? `${icon('phone')} ${m.linkedPhones > 1 ? `${Number(m.linkedPhones)} phones linked` : 'linked'}` : '',
     m.guest && m.guestUntil ? `until ${esc(new Date(m.guestUntil + 'T12:00').toLocaleDateString())}` : '',
     m.active ? '' : 'ended',
   ].filter(Boolean).join(' · ');

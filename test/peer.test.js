@@ -41,11 +41,11 @@ function memoryStorage() {
   return { load: async () => structuredClone(saved), save: async (rec) => { saved = structuredClone(rec); }, peek: () => saved };
 }
 
-async function linkPhone(hb, member, storage = memoryStorage()) {
+async function linkPhone(hb, member, storage = memoryStorage(), { now } = {}) {
   const session = hb.host.session({ mode: 'link', memberId: member.id, by: hb.mom.id });
   const ready = await session.handle({ t: 'hello', key: null, accept: true });
   assert.equal(ready.t, 'ready');
-  const client = await createPeerClient({ storage });
+  const client = await createPeerClient({ storage, ...(now && { now }) });
   await client.connected(connect(session), ready);
   return { client, storage, key: ready.key };
 }
@@ -565,4 +565,101 @@ test('an anonymous question on a linked phone apart: only anonymous answers, in 
   assert.equal(r.failed.length, 0);
   hb.as(hb.mom.id);
   assert.deepEqual((await hb.call('GET', '/api/asks')).mine.map((a) => a.answeredBy), [null]);
+});
+
+// ---------- one person, two devices (a phone and an iPad, say) ----------
+
+test('one person can link two devices: both stay linked, both get the inbox, and each sees what the other did', async () => {
+  const hb = await homeBase();
+  const phone = await linkPhone(hb, hb.sam);
+  const ipad = await linkPhone(hb, hb.sam);
+  assert.notEqual(phone.key, ipad.key, 'each device has its own key');
+  assert.deepEqual(Object.values(hb.store.raw().hub.peers).map((p) => p.memberId), [hb.sam.id, hb.sam.id], 'linking the iPad kept the phone');
+  hb.as(hb.mom.id);
+  assert.equal((await hb.call('GET', '/api/state')).members.find((m) => m.id === hb.sam.id).linkedPhones, 2);
+
+  await hb.call('POST', '/api/feedback', { toIds: [hb.sam.id], ...kidNote('You fed the cat') });
+  await sync(hb, phone);
+  await sync(hb, ipad);
+  phone.client.disconnected();
+  ipad.client.disconnected();
+  for (const d of [phone, ipad]) assert.deepEqual((await d.client.api('GET', '/api/inbox')).map((x) => x.fields.happened), ['You fed the cat']);
+
+  // Apart: the phone opens the message and sends Mom one. The iPad doesn't know yet.
+  const [item] = await phone.client.api('GET', '/api/inbox');
+  await phone.client.api('POST', `/api/feedback/${item.id}/read`);
+  await phone.client.api('POST', '/api/feedback', { toIds: [hb.mom.id], ...kidNote('From my phone') });
+  assert.equal((await ipad.client.api('GET', '/api/state')).me.unread, 1);
+  assert.deepEqual(await ipad.client.api('GET', '/api/sent'), []);
+
+  // The phone syncs, then the iPad: it learns both.
+  assert.deepEqual([(await sync(hb, phone)).sent, (await sync(hb, ipad)).sent], [2, 0]);
+  ipad.client.disconnected();
+  assert.equal((await ipad.client.api('GET', '/api/state')).me.unread, 0, 'read on the phone, read on the iPad');
+  assert.deepEqual((await ipad.client.api('GET', '/api/sent')).map((g) => g.fields.happened), ['From my phone']);
+
+  // Linking the phone again (same device, its own key) leaves the iPad linked.
+  const again = hb.host.session({ mode: 'link', memberId: hb.sam.id, by: hb.mom.id });
+  await phone.client.connected(connect(again), await again.handle({ t: 'hello', key: phone.client.link.key, accept: true }));
+  assert.equal(Object.keys(hb.store.raw().hub.peers).length, 2);
+  assert.equal((await sync(hb, ipad)).status, undefined, 'the iPad still syncs');
+
+  // Unlink removes both.
+  hb.as(hb.mom.id);
+  await hb.call('DELETE', `/api/members/${hb.sam.id}/phones`);
+  assert.deepEqual([(await sync(hb, phone)).status, (await sync(hb, ipad)).status], [401, 401]);
+});
+
+test('two devices change the same thing apart: first open counts, last reaction and reply win, a question is answered once, one plan per message', async () => {
+  let t = new Date('2026-11-25T10:00:00Z').getTime();
+  const hb = await homeBase(() => new Date(t));
+  hb.as(hb.mom.id);
+  await hb.call('POST', '/api/feedback', { toIds: [hb.sam.id], ...kidNote('You shared your toys') });
+  const q = await hb.call('POST', '/api/asks', { toIds: [hb.sam.id], what: 'I made pancakes.', help: 'well', model: 'kids' });
+  const clock = { now: () => new Date(t) };
+  const phone = await linkPhone(hb, hb.sam, undefined, clock);
+  const ipad = await linkPhone(hb, hb.sam, undefined, clock);
+  await sync(hb, phone);
+  phone.client.disconnected();
+  ipad.client.disconnected();
+  const [item] = await phone.client.api('GET', '/api/inbox');
+
+  t += 60e3;
+  const phoneOpened = new Date(t).toISOString();
+  await phone.client.api('POST', `/api/feedback/${item.id}/read`);
+  t += 5 * 60e3;
+  await ipad.client.api('POST', `/api/feedback/${item.id}/read`);
+  t += 40 * 60e3; // past the break on both
+  await phone.client.api('POST', `/api/feedback/${item.id}/respond`, { reaction: 'thanks', reply: 'From the phone' });
+  await ipad.client.api('POST', `/api/feedback/${item.id}/respond`, { reaction: 'got-it', reply: 'From the iPad' });
+  for (const d of [phone, ipad]) {
+    await d.client.api('POST', '/api/feedback', { toIds: [hb.mom.id], askId: q.id, ...kidNote(d === phone ? 'Yummy (phone)' : 'Yummy (iPad)') });
+  }
+  const plan = { feedbackId: item.id, promiseId: 'calm-voice', when: 'feel cross', then: 'take three big breaths', days: 14, helperId: hb.dad.id };
+  await phone.client.api('POST', '/api/plans', plan);
+  await ipad.client.api('POST', '/api/plans', plan);
+
+  const r1 = await sync(hb, phone);
+  assert.equal(r1.failed.length, 0);
+  const r2 = await sync(hb, ipad);
+  assert.deepEqual(r2.failed.map((i) => i.path).sort(), ['/api/feedback', '/api/plans'], 'the iPad’s second answer and second plan are not applied');
+
+  const f = hb.store.raw().feedback.find((x) => x.id === item.id);
+  assert.equal(f.readAt, phoneOpened, 'the first time it was opened counts, so the break counts from then');
+  assert.deepEqual([f.reaction, f.reply], ['got-it', 'From the iPad'], 'the last reaction and reply win, as when editing on one device');
+  hb.as(hb.mom.id);
+  assert.deepEqual((await hb.call('GET', '/api/inbox')).filter((x) => x.askWhat === 'I made pancakes.').map((x) => x.fields.happened), ['Yummy (phone)'], 'the question is answered once');
+  hb.as(hb.sam.id);
+  assert.equal((await hb.call('GET', '/api/plans')).mine.length, 1, 'one plan from the message, not two');
+
+  // The iPad says why, and lets Sam let them go.
+  ipad.client.disconnected();
+  const failedAnswer = (await ipad.client.api('GET', '/api/sent')).find((g) => g.failed);
+  assert.match(failedAnswer.error, /isn’t open any more/);
+  const { failed: [failedPlan] } = await ipad.client.api('GET', '/api/plans');
+  assert.match(failedPlan.error, /already made a promise from this message/);
+  await ipad.client.discardFailed(failedAnswer.groupId);
+  await ipad.client.discardFailed(failedPlan.id);
+  assert.equal(ipad.client.status().failed, 0);
+  assert.equal((await ipad.client.api('GET', '/api/plans')).mine.length, 1, 'and it shows the plan made on the phone');
 });

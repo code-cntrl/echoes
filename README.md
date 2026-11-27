@@ -337,6 +337,26 @@ at least one parent. A guest can instead be given an end date.
 Invite links work **once** and expire after **7 days**. Anyone holding the link can
 sign in as that person, so send it only to them.
 
+### One person, several devices
+
+Someone with a phone and an iPad (or a Chromebook) can use Echoes on all of them:
+
+- **Home hub:** send them an invite for each device, or sign in on it. Every device shows the
+  same inbox, since it all lives on the hub; reading or replying on one shows on the others. Up
+  to 20 devices each. Signing out of one leaves the others signed in; a new PIN signs out all the
+  others.
+- **Phone as home base:** a parent taps **Link phone** next to them once per device. Family then
+  says "2 phones linked", and **Unlink 2 phones** removes both. Each device keeps its own copy and
+  catches up when it syncs: what Sam did on his phone shows on his iPad after the phone has synced,
+  then the iPad.
+- **One shared device:** everyone uses that one device.
+
+If two linked devices change the same thing while apart, the home base settles it at each sync:
+the first time a message was opened counts (so the break counts from then), the last reaction
+or reply to sync wins (like editing it), a question is answered once, and there is one plan per
+message. The second answer or plan isn't lost silently: that device shows it as not sent, with
+the reason, until it's discarded.
+
 ### What about the iPhone "bump" (NameDrop)?
 
 NameDrop only swaps contact cards between iPhones, and Apple doesn't let websites
@@ -590,7 +610,8 @@ node scripts/icons.mjs # re-render PNG app icons from public/icons/icon.svg
 `npm run test:peer` serves `public/` as static files from a sub-path, like GitHub Pages,
 and gives each phone its own browser profile. It reads each QR code off the screen,
 pastes it into the other phone, and checks linking, the welcome, live messages,
-queueing while apart, a reload, syncing again, that an unlinked phone is refused, the
+queueing while apart, a reload, syncing again, a second device for the same person (Sam's
+iPad: the same inbox and Sent, "2 phones linked"), that unlinking refuses both, the
 idle sign-out and the one-window rule. Pass a folder to save light and dark screenshots.
 It hides Chromium's private `.local` addresses by default; `PEER_MDNS=1` keeps them,
 which is closer to Safari. Neither replaces testing on real iPhones.

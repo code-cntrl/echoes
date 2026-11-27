@@ -92,6 +92,12 @@ function text(value, max, label, required = true) {
   return s;
 }
 
+// One plan per message: the inbox shows the plan made from it instead of "Make a plan". Two devices of
+// the same person, apart, could each make one; the second to sync is refused with this.
+export function checkOnePlanPerMessage(me, planned) {
+  if (planned) throw new HttpError(409, `You already made a ${me.role === 'kid' ? 'promise' : 'plan'} from this message. See it in Plans.`);
+}
+
 /**
  * Checks a new plan and returns the fields to store.
  * @param {object} o

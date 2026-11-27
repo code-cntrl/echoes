@@ -349,3 +349,31 @@ test('a kid can send every style, grown-up ones included', async () => {
   const got = (await mom('GET', '/api/inbox')).data.find((f) => f.id === r.data.ids[0]);
   assert.deepEqual([got.model, got.from.name], ['dearman', 'Sam']);
 });
+
+test('one person on two devices: an invite for each, one inbox, and signing out of one leaves the other', async () => {
+  const lee = (await mom('POST', '/api/members', { name: 'Lee', emoji: '🙂', role: 'adult' })).data.id;
+  const phone = client();
+  const laptop = client();
+  for (const device of [phone, laptop]) {
+    const token = (await mom('POST', '/api/invites', { memberId: lee })).data.url.split('/').pop();
+    assert.equal((await device('POST', '/api/join', { token })).status, 200);
+  }
+  await phone('POST', '/api/welcome', {});
+  assert.equal((await laptop('GET', '/api/state')).data.me.welcomed, true, 'welcomed once, on either device');
+
+  await mom('POST', '/api/feedback', { toId: lee, model: 'glow-grow', fields: { glow: 'You fixed the gate.', grow: 'Please put the tools back.' } });
+  const [onPhone] = (await phone('GET', '/api/inbox')).data;
+  const [onLaptop] = (await laptop('GET', '/api/inbox')).data;
+  assert.equal(onPhone.id, onLaptop.id, 'the same inbox on both');
+  assert.equal((await phone('POST', `/api/feedback/${onPhone.id}/respond`, { reaction: 'thanks' })).status, 200);
+  const [after] = (await laptop('GET', '/api/inbox')).data;
+  assert.deepEqual([after.read, after.reaction], [true, 'thanks'], 'opened and thanked on the phone shows on the laptop');
+  assert.equal((await laptop('GET', '/api/state')).data.me.unread, 0);
+
+  assert.equal((await laptop('POST', '/api/feedback', { toId: ids.mom, model: 'glow-grow', fields: { glow: 'Dinner was great.', grow: 'Can we eat earlier?' } })).status, 200);
+  assert.equal((await phone('GET', '/api/sent')).data[0].fields.glow, 'Dinner was great.', 'sent from the laptop, listed on the phone');
+
+  await laptop('POST', '/api/logout', {});
+  assert.equal((await laptop('GET', '/api/inbox')).status, 401);
+  assert.equal((await phone('GET', '/api/inbox')).status, 200, 'still signed in on the phone');
+});
