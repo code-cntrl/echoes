@@ -4,6 +4,7 @@ import { loadPeer, peerApi } from './backend.js';
 import { app, emptyState, esc, icon, plural } from './dom.js';
 import { currentView, refresh, renderChrome } from './router.js';
 import { S, api, isDevice, isPeer, memberById, setApi, setS, ui } from './state.js';
+import { syncUnsupported } from '../shared/signal.js';
 
 export let peerLink = null; // open connection from this linked phone to the home base
 
@@ -163,11 +164,15 @@ export function drawSync() {
       : '<button type="button" class="primary" data-action="sync-again">Sync another phone</button>', '<a class="btn" href="#/family">Back</a>');
   }
   if (s.step === 'done' && !host) actions.push('<a class="btn primary" href="#/inbox">Go to my inbox</a>', '<button type="button" data-action="sync-again">Sync again</button>');
-  if (s.step === 'error') actions.push('<button type="button" class="primary" data-action="sync-again">Try again</button>');
+  if (s.step === 'error') {
+    actions.push(s.unsupported
+      ? `<a class="btn primary" href="#/${S.setupDone ? (host ? 'family' : 'inbox') : ''}">Back</a>`
+      : '<button type="button" class="primary" data-action="sync-again">Try again</button>');
+  }
   if (!['done', 'connected', 'error'].includes(s.step)) actions.push(`<a class="btn link" href="#/${S.setupDone ? (host ? 'family' : 'inbox') : ''}">Cancel</a>`);
   $('sync-actions').innerHTML = actions.join('');
   // Away from home Wi-Fi, the phones can still meet on the home base's hotspot.
-  $('sync-away').hidden = !['offer', 'scan', 'answer', 'connecting', 'error'].includes(s.step);
+  $('sync-away').hidden = s.unsupported || !['offer', 'scan', 'answer', 'connecting', 'error'].includes(s.step);
   const diag = s.host?.diag || s.pending?.diag;
   $('sync-diag').hidden = !diag;
   if (diag) $('sync-diag-text').textContent = diagText(diag);
@@ -188,6 +193,7 @@ export function syncFailed(s, err) {
   s.stopScan?.();
   s.step = 'error';
   s.error = err?.message || String(err);
+  s.unsupported = !!err?.unsupported;
   drawSync();
 }
 
@@ -213,7 +219,14 @@ export async function startCamera(s, onCode) {
   if (ui.sync !== s) s.stopScan?.();
 }
 
+// Too old a system to sync: say so before anyone scans or installs anything.
+function needSync() {
+  const why = syncUnsupported();
+  if (why) throw Object.assign(new Error(why), { unsupported: true });
+}
+
 export async function hostFlow(s) {
+  needSync();
   const lib = await loadSyncLib();
   if (s.mode === 'link' && !s.pastGet) {
     // The camera and the connection wait for Next, so nothing starts while the other phone installs.
@@ -276,6 +289,7 @@ export async function hostAccept(s, code) {
 }
 
 export async function joinFlow(s) {
+  needSync();
   s.step = 'scan';
   drawSync();
   await startCamera(s, (code) => joinAnswer(s, code));

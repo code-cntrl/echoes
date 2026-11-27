@@ -22,6 +22,13 @@
   Keep start-up side effects in `app.js`, so modules only declare things. A new file under
   `public/ui/` also goes in the service worker's `SHELL` list (and bump `CACHE`). Put ids and
   counts from the hub or a home base into markup through `Number()`, and text through `esc()`.
+- **Older Safari.** The app's modules need iOS 14 (they use `??=`). `public/boot.js` is a classic
+  ES5 script that runs first: it fills in `structuredClone`, `Object.hasOwn` and `.at()` (iOS
+  15.4) and, if the app can't start, replaces **Loading…** with a message that names the system.
+  `app.js` calls `echoesBoot.started()` after the first screen. Don't use newer syntax, or an API
+  newer than iOS 14 while starting, without a fallback there or a feature check. Keep
+  `theme-init.js` to old-Safari syntax. Linking phones needs compression streams (iOS 16.4):
+  `syncUnsupported()` in `shared/signal.js` says so. README, "Which iPhones and iPads", has the table.
 - **Line endings:** most files use CRLF. Keep them when editing.
 - **The old name.** The app was called Family Feedback. Names nobody sees keep it so existing data
   keeps working: the IndexedDB database (`family-feedback`), the backup file's `app` marker, the
@@ -33,7 +40,7 @@
 - **Checks** (browser ones use headless Microsoft Edge):
   `npm test`, `npm run test:browser`, `npm run test:layout`, `npm run test:plans`,
   `npm run test:peer`, `npm run test:push`, `npm run test:privacy`, `npm run test:stress`, `npm run test:asks`, `npm run test:styles`,
-  `npm run test:get-echoes`, `npm run test:iphone` and `npm run test:conversation` (WebKit; install it once with
+  `npm run test:get-echoes`, `npm run test:boot` (Edge and WebKit), `npm run test:iphone` and `npm run test:conversation` (WebKit; install it once with
   `node node_modules/playwright-core/cli.js install webkit`),
   `npm run screenshots`.
 - **Notifications** (`src/push.js`) only ever say "You have something new."; the encrypted

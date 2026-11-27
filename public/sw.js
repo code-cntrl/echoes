@@ -1,9 +1,9 @@
 // Offline support for the app shell. API calls always go to the network.
 // Service workers only run in secure contexts (https:// or localhost), so on a plain-http
 // home hub the app simply works online without this.
-const CACHE = 'ff-shell-v20';
+const CACHE = 'ff-shell-v21';
 const SHELL = [
-  './', 'index.html', 'theme-init.js', 'app.js', 'local-backend.js', 'peer-backend.js', 'peer-link.js', 'styles.css', 'manifest.webmanifest',
+  './', 'index.html', 'boot.js', 'theme-init.js', 'app.js', 'local-backend.js', 'peer-backend.js', 'peer-link.js', 'styles.css', 'manifest.webmanifest',
   'shared/models.js', 'shared/tone.js', 'shared/errors.js', 'shared/plans.js', 'shared/asks.js', 'shared/core.js', 'shared/store.js', 'shared/peer-host.js', 'shared/peer-client.js', 'shared/signal.js',
   'ui/actions.js', 'ui/backend.js', 'ui/dom.js', 'ui/family.js', 'ui/forms.js', 'ui/give.js', 'ui/guide.js', 'ui/inbox.js', 'ui/plans.js', 'ui/push.js', 'ui/router.js', 'ui/sent.js', 'ui/state.js', 'ui/sync.js', 'ui/theme.js', 'ui/welcome.js',
   'vendor/qrcode.mjs', 'vendor/jsQR.js',

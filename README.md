@@ -113,6 +113,26 @@ when started by hand (**Actions → Deploy to GitHub Pages → Run workflow**). 
 app's code is published; each family's messages stay on their phones. Free GitHub
 Pages needs a public repository.
 
+### Which iPhones and iPads
+
+To see the version: **Settings → General → About → Software Version**. Updates are in
+**Settings → General → Software Update**.
+
+| iOS or iPadOS | What works |
+|---|---|
+| 16.4 or later | Everything: linking and syncing phones, and notifications from the Home Screen app |
+| 15.4 to 16.3 | Everything except linking phones and notifications. Use it as one shared device or with a home hub. Link phone says why it can't link |
+| 14.0 to 15.3 | It starts, with small fallbacks, but highlighted choices (the picked tab or chip) may not show. Update if you can |
+| 13 or older | Can't run Echoes. It says so and names the version, instead of loading forever |
+
+Older iPads stop at: iPad Air 2 and iPad mini 4 at iPadOS 15.8 (shared device or hub; no linking),
+iPad Air, iPad mini 2 and 3 at iOS 12.5 (too old), and earlier iPads at iOS 9 or 10 (too old). Any
+iPad from the 5th generation (2017) on reaches 16.4 or later.
+
+If Echoes can't start for another reason (a script that fails or won't load, or a start that never
+finishes), it shows what happened and a **Reload** button instead of **Loading…**. The small grey
+line at the bottom (the system and the error) is what to tell whoever set it up.
+
 ## Testing on real iPhones
 
 `npm run serve:https` serves the app over https from this computer, in this-device
@@ -559,6 +579,7 @@ npm run test:styles    # headless Edge: kids using every style, example ghost te
 npm run test:iphone    # headless WebKit (Safari's engine) at iPhone 15 size: hub, kid, asking, one device
 npm run test:conversation  # two iPhones (WebKit) talk to each other through the hub, start to finish
 npm run test:get-echoes    # headless Edge: the Get Echoes code on the home base, and where #/link leads
+npm run test:boot      # Edge and WebKit: start-up on older or broken browsers, and the fallbacks
 npm run iphone         # an iPhone-sized WebKit window on the hub, to try it by hand (see above)
 npm run start:https    # the home hub over https, for notifications (see Notifications)
 npm run serve:https    # https test copy on this computer for real iPhones (see above)
@@ -659,6 +680,16 @@ picture), with no camera or sync code until **Next**, then the sync code as befo
 `#/link` leads: iPhone Safari to the Add to Home Screen steps, an iPhone Home Screen app and a
 Chromebook straight to Link this phone, a device with a family to the app as usual. It writes boards
 to `screenshots/get-echoes`. `npm run test:peer` follows the whole path with two phones over WebRTC.
+
+`npm run test:boot` needs Edge and Playwright's WebKit. It checks `public/boot.js`, the classic
+script that runs first. With structuredClone, Object.hasOwn, `.at()`, Web Locks, Intl.Segmenter
+and the compression streams taken away (as on iOS 14.0 to 15.3), the app still starts and keeps a
+family across a reload, and Link phone says linking needs iOS 16.4. A syntax error in `app.js`, a
+module that won't load, and a start that never finishes (a fake clock, 15 seconds) each replace
+**Loading…** with a message and **Reload**. When a slow start does finish, the app takes over. An
+iPad on iOS 12, or one on iPadOS 13 asking for desktop sites, is told it's too old, with its version.
+Old Safari can't run here, so these failures are made on purpose. It writes boards to
+`screenshots/boot`. `test/boot.test.js` checks the fallbacks themselves in a bare context.
 
 For agents and contributors: [AGENTS.md](AGENTS.md) has the house rules, [docs/design.md](docs/design.md)
 the design contract, and [.agents/skills](.agents/skills/README.md) the agent skills: design and UI,

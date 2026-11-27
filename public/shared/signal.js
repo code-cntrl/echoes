@@ -39,6 +39,17 @@ async function inflate(bytes, limit) {
   return out;
 }
 
+// The codes are squeezed with the browser's compression streams, which Safari has from iOS 16.4.
+export function syncUnsupported() {
+  try {
+    new CompressionStream('deflate-raw');
+    new DecompressionStream('deflate-raw');
+    return null;
+  } catch {
+    return 'Linking and syncing phones needs iOS or iPadOS 16.4 or later on this device (Settings → General → Software Update), or a recent Chrome or Edge. Echoes still works here on its own.';
+  }
+}
+
 /** @param {'offer'|'answer'} kind */
 export async function encodeSignal(kind, sdp) {
   const json = JSON.stringify({ k: kind === 'offer' ? 'o' : 'a', s: sdp });

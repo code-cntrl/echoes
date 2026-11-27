@@ -26,12 +26,13 @@ through `playwright-core`; the iPhone ones run Playwright's WebKit, installed on
 | `public/ui/push.js`, `public/sw.js` | `npm run test:push` | `npm run screenshots` |
 | Invites, sign-in, PINs, shared devices | `npm run test:privacy` | `npm test`, `npm run screenshots` |
 | Anything a person sees on an iPhone | `npm run test:iphone` | `npm run test:conversation` |
+| `public/boot.js`, `theme-init.js`, `index.html`, anything that runs while starting | `npm run test:boot` | `npm test` (includes `test/boot.test.js`), `npm run test:iphone` |
 
 Before saying the work is done, run all of them:
 
 ```powershell
 foreach ($s in 'test','test:privacy','test:stress','test:push','test:plans','test:peer','test:layout',
-  'test:browser','test:asks','test:styles','test:get-echoes','test:iphone','test:conversation','screenshots') {
+  'test:browser','test:asks','test:styles','test:get-echoes','test:boot','test:iphone','test:conversation','screenshots') {
   $out = npm run $s 2>&1 | Out-String
   "[$s] exit=$LASTEXITCODE :: " + (($out.Trim() -split "`n" | Select-Object -Last 2) -join ' | ')
 }

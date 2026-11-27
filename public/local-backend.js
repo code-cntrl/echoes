@@ -10,12 +10,29 @@ const KEY = 'doc';
 const SESSION_KEY = 'ff-device-member';
 const PBKDF2_ITERATIONS = 210_000;
 
-export function openDb() {
+// Safari 14 could leave a page's first IndexedDB request unanswered, so the app sat at Loading….
+// Asking for the list of databases wakes it up: ask every 100 ms (for up to 2 s) before opening.
+function storageAwake() {
+  if (typeof indexedDB.databases !== 'function') return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => { clearInterval(again); clearTimeout(enough); resolve(); };
+    const poke = () => {
+      try { indexedDB.databases().then(done, done); } catch { done(); } // not allowed here: just open
+    };
+    const again = setInterval(poke, 100);
+    const enough = setTimeout(done, 2000);
+    poke();
+  });
+}
+
+export async function openDb() {
+  await storageAwake();
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
+    const stuck = setTimeout(() => reject(new Error('This device’s storage isn’t answering. Close the browser completely (swipe it away), then open Echoes again.')), 10_000);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => { clearTimeout(stuck); resolve(req.result); };
+    req.onerror = () => { clearTimeout(stuck); reject(req.error); };
   });
 }
 

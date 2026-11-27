@@ -170,4 +170,5 @@ document.addEventListener('visibilitychange', () => {
   } catch (err) {
     renderError(err);
   }
+  window.echoesBoot?.started(); // boot.js: the first screen is up, so no "couldn’t start" message
 })();
