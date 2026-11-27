@@ -26,7 +26,8 @@
     "test:styles": "node scripts/styles-check.mjs",
     "test:iphone": "node scripts/iphone-check.mjs",
     "iphone": "node scripts/iphone.mjs",
-    "test:conversation": "node scripts/conversation-check.mjs"
+    "test:conversation": "node scripts/conversation-check.mjs",
+    "test:get-echoes": "node scripts/get-echoes-check.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.65.1"

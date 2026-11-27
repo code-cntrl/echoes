@@ -10,7 +10,7 @@ import { b64uBytes, currentPushSub, pushReady, updateNotifyCard } from './push.j
 import { refresh, renderChrome } from './router.js';
 import { renderSent } from './sent.js';
 import { S, api, blankCompose, clearDraft, compose, isKid, memberById, saveDraft, setCompose, setS, ui } from './state.js';
-import { endSync, peerLink, renderSync } from './sync.js';
+import { endSync, hostFlow, peerLink, renderSync, syncFailed } from './sync.js';
 import { renderSignIn, signIn, signOut } from './welcome.js';
 
 export function setPressed(el) {
@@ -282,8 +282,30 @@ export const actions = {
       prompt('Copy this code:', code);
     }
   },
+  // Get Echoes is done (or wasn't needed): on to the link code.
+  'sync-get-next'() {
+    const s = ui.sync;
+    if (!s || s.step !== 'get') return;
+    s.pastGet = true;
+    hostFlow(s).catch((err) => syncFailed(s, err));
+  },
+  async 'sync-share-link'() {
+    const url = ui.sync?.getUrl;
+    if (!url) return;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Echoes', text: `Get Echoes for ${S.family.name}`, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast('Link copied');
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') prompt('Copy this link:', url);
+    }
+  },
   'sync-again'() {
     const linkFor = ui.sync?.mode === 'link' && ui.sync.step === 'error' ? ui.sync.memberId : null;
+    // Trying again after linking failed: their phone already has Echoes.
+    ui.linkSkipGet = !!(linkFor && ui.sync?.pastGet);
     endSync();
     ui.linkFor = linkFor;
     renderSync();

@@ -9,7 +9,7 @@ import { setAppBadge } from './push.js';
 import { renderSent } from './sent.js';
 import { S, api, blankCompose, compose, isKid, isPeer, loadDraft, setCompose, setS, ui } from './state.js';
 import { renderSync } from './sync.js';
-import { joinWithInvite, renderSetup, renderSignIn, renderWelcome } from './welcome.js';
+import { joinWithInvite, renderLinkLanding, renderSetup, renderSignIn, renderWelcome } from './welcome.js';
 
 export async function refresh() {
   setS(await api('GET', '/api/state'));
@@ -42,7 +42,9 @@ export async function renderRoute() {
   try {
     const [view, arg] = location.hash.replace(/^#\/?/, '').split('/');
     if (view === 'join' && arg) return await joinWithInvite(arg);
-    if (view === 'sync') return await renderSync();
+    // Get Echoes: either its own screen, or on to Link this phone or the Inbox.
+    if (view === 'link' && renderLinkLanding()) return;
+    if (currentView() === 'sync') return await renderSync();
     if (!S.setupDone) return renderSetup();
     if (!S.me) return renderSignIn();
     if (!S.me.welcomed) return renderWelcome();

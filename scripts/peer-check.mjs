@@ -49,8 +49,10 @@ const browser = await chromium.launch({
   args: process.env.PEER_MDNS ? [] : ['--disable-features=WebRtcHideLocalIpsWithMdns'],
 });
 const errors = [];
-async function phone(name, { clock = false } = {}) {
+// `homeScreen`: the app opened from the iPhone Home Screen (its own storage, as on iOS), not Safari.
+async function phone(name, { clock = false, homeScreen = false, url = URL_ } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  if (homeScreen) await ctx.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true }));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
   page.on('console', (m) => {
@@ -59,20 +61,20 @@ async function phone(name, { clock = false } = {}) {
   });
   page.on('dialog', (d) => d.accept());
   if (clock) await page.clock.install(); // lets the test skip ahead to the idle sign-out
-  await page.goto(URL_);
+  await page.goto(url);
   return page;
 }
 
 const status = (page) => page.locator('#sync-status').textContent();
 
 // Reads the code shown as a QR image by decoding the picture itself, as the other phone's camera would.
-async function shownCode(page) {
-  await page.waitForFunction(() => {
-    const img = document.querySelector('#sync-qr:not([hidden]) img');
+async function shownCode(page, box = '#sync-qr') {
+  await page.waitForFunction((sel) => {
+    const img = document.querySelector(`${sel}:not([hidden]) img`);
     return img && img.src.startsWith('data:') && img.complete && img.naturalWidth > 0;
-  }, null, { timeout: 15_000 });
-  return page.evaluate(async () => {
-    const img = document.querySelector('#sync-qr img');
+  }, box, { timeout: 15_000 });
+  return page.evaluate(async (sel) => {
+    const img = document.querySelector(`${sel} img`);
     const c = document.createElement('canvas');
     c.width = c.height = 900;
     const g = c.getContext('2d');
@@ -81,7 +83,7 @@ async function shownCode(page) {
     g.drawImage(img, 0, 0, 900, 900);
     const { readQr } = await import(new URL('peer-link.js', document.baseURI).href);
     return readQr(g.getImageData(0, 0, 900, 900));
-  });
+  }, box);
 }
 
 async function paste(page, code) {
@@ -130,9 +132,30 @@ try {
   await home.getByRole('button', { name: 'Link phone', exact: true }).nth(1).click();
   await home.waitForURL(/#\/sync$/);
   check((await home.locator('h1').textContent()).includes('Link Sam’s phone'), 'parent starts linking from Family → Link phone');
-  const sam = await phone('sam');
+  // First, Get Echoes: a QR code of the app's own address, before any camera or connection.
+  const getUrl = await shownCode(home, '#sync-get');
+  check(getUrl === `${URL_}#/link`, `the Get Echoes QR opens the app at #/link (${getUrl})`);
+  check(await home.locator('#sync-camera').isHidden() && await home.locator('#sync-qr').isHidden(), 'no camera or sync code until Next');
+  await shot(home, 'link-home-get');
+  // Sam scans it with the Camera: Safari opens it and says to add Echoes to the Home Screen first.
+  const samSafari = await phone('sam-safari', { url: getUrl });
+  await samSafari.getByRole('heading', { name: 'Get Echoes' }).waitFor();
+  check(/Add to Home Screen/.test(await samSafari.locator('main').innerText()) && !(await samSafari.locator('form[data-form="setup"]').count()),
+    'in Safari, the link says to add Echoes to the Home Screen first (and offers no setup there)');
+  await shot(samSafari, 'link-phone-get');
+  await samSafari.context().close();
+  // The Home Screen app has its own storage and opens at the start address: Link this phone comes first.
+  const sam = await phone('sam', { homeScreen: true });
+  await sam.waitForSelector('form[data-form="setup"]');
+  const order = await sam.evaluate(() => {
+    const join = document.querySelector('[data-action="start-join"]');
+    const form = document.querySelector('form[data-form="setup"]');
+    return join && form ? join.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING : 0;
+  });
+  check(order > 0, 'a new Home Screen app on an iPhone offers Link this phone before starting a family');
   await sam.getByRole('button', { name: 'Link this phone' }).click();
   await sam.waitForURL(/#\/sync$/);
+  await home.getByRole('button', { name: 'Next', exact: true }).click();
   await shot(home, 'link-home-offer');
   const answer = await connect(home, sam);
   await shot(sam, 'link-phone-answer');

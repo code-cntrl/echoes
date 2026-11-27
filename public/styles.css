@@ -490,6 +490,10 @@ td, th { padding: .55rem .4rem; text-align: left; border-bottom: .5px solid var(
 .qr { width: 220px; height: 220px; background: #fff; border-radius: 12px; padding: 6px; }
 .invite-url { font-size: .85rem; }
 @media (max-width: 600px) { .invite-body { grid-template-columns: 1fr; justify-items: center; } }
+.get-url { overflow-wrap: anywhere; margin: 0; }
+.get-echoes ol.steps { padding: 0; }
+.get-echoes .big { display: grid; place-items: center; width: 4rem; height: 4rem; margin: 1rem auto 0; border-radius: 50%; background: var(--surface-2); color: var(--accent); }
+.get-echoes .big svg.i { width: 1.9rem; height: 1.9rem; stroke-width: 1.5; }
 .big-qr { width: min(76vw, 290px); height: auto; aspect-ratio: 1; margin: 0 auto; display: block; background: #fff; border-radius: 12px; padding: 8px; }
 .sync-video { width: 100%; max-height: 50vh; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: #000; }
 .sync-chip { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; color: var(--muted); font-weight: 500; font-size: .8125rem; padding: .2rem .6rem; border-radius: 999px; background: var(--surface-2); }

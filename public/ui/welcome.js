@@ -44,8 +44,10 @@ export function renderSetup() {
     app.innerHTML = setup;
     return;
   }
-  // A phone that was linked before most likely wants to be linked again, not start a new family.
+  // A phone that was linked before most likely wants to be linked again, not start a new family;
+  // so does a new iPhone Home Screen app (usually someone who just scanned Get Echoes).
   const wasLinked = localStorage.getItem('ff-was-linked');
+  const joinFirst = wasLinked || (platform() === 'ios' && isStandalone());
   const join = `<section class="stack narrow">
       <span class="label">${wasLinked ? 'Link this phone again?' : 'Joining your family?'}</span>
       <ul class="list inset-icon"><li><button type="button" class="item" data-action="start-join">
@@ -54,7 +56,35 @@ export function renderSetup() {
           <span class="sub">${wasLinked ? `This phone used to be linked to ${esc(wasLinked)}.` : 'Your family already uses Echoes on another phone.'}
             A parent starts it there from Family → Link phone.</span></span>${icon('chevron', 'chev')}</button></li></ul>
     </section>`;
-  app.innerHTML = wasLinked ? `${join}<p class="center muted small mt-2">Or start a new family on this phone</p>${setup}` : `${setup}${join}`;
+  app.innerHTML = joinFirst ? `${join}<p class="center muted small mt-2">Or start a new family on this phone</p>${setup}` : `${setup}${join}`;
+}
+
+// #/link, from the Get Echoes code on a home base. On an iPhone in Safari, the link must be made
+// in the Home Screen app (it keeps its data apart from Safari's), so first say how to add it.
+// Elsewhere, a phone with no family goes straight to Link this phone.
+export function renderLinkLanding() {
+  if (S.setupDone || !isDevice()) {
+    history.replaceState(null, '', '#/inbox');
+    return false;
+  }
+  if (platform() !== 'ios' || isStandalone()) {
+    history.replaceState(null, '', '#/sync');
+    return false;
+  }
+  app.innerHTML = `
+    <section class="stack narrow get-echoes">
+      <div class="big">${icon('phone')}</div>
+      <h1 class="center">Get Echoes</h1>
+      <p class="center muted">Your family uses Echoes to share kind, honest feedback. Put it on your Home Screen
+        first: your iPhone keeps the Home Screen app’s messages, not Safari’s.</p>
+      <ol class="list steps">
+        <li class="item"><span class="icon-sq solid">1</span><span class="grow">Tap <strong>Share</strong> ${icon('upload')} at the bottom of Safari.</span></li>
+        <li class="item"><span class="icon-sq solid">2</span><span class="grow">Tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</span></li>
+        <li class="item"><span class="icon-sq solid">3</span><span class="grow">Open <strong>Echoes</strong> from your Home Screen and tap <strong>Link this phone</strong>.</span></li>
+      </ol>
+      <p class="center small muted">Then point your phone at the code on the home base phone.</p>
+    </section>`;
+  return true;
 }
 
 export function renderSignIn() {

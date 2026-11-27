@@ -33,7 +33,7 @@
 - **Checks** (browser ones use headless Microsoft Edge):
   `npm test`, `npm run test:browser`, `npm run test:layout`, `npm run test:plans`,
   `npm run test:peer`, `npm run test:push`, `npm run test:privacy`, `npm run test:stress`, `npm run test:asks`, `npm run test:styles`,
-  `npm run test:iphone` and `npm run test:conversation` (WebKit; install it once with
+  `npm run test:get-echoes`, `npm run test:iphone` and `npm run test:conversation` (WebKit; install it once with
   `node node_modules/playwright-core/cli.js install webkit`),
   `npm run screenshots`.
 - **Notifications** (`src/push.js`) only ever say "You have something new."; the encrypted

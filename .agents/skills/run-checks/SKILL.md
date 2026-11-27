@@ -16,6 +16,7 @@ through `playwright-core`; the iPhone ones run Playwright's WebKit, installed on
 |---|---|---|
 | `public/shared/*` (rules, store, styles, plans, asks) | `npm test` | the browser check for that feature, then `npm run test:peer` (linked phones repeat the rules) |
 | `public/shared/peer-*.js`, `public/peer-*.js` | `npm test` (includes `test/peer.test.js`) | `npm run test:peer` (real WebRTC between two Edge profiles) |
+| `public/ui/sync.js`, linking, `#/link`, the setup screen | `npm run test:get-echoes` | `npm run test:peer` |
 | `src/server.js`, `src/push.js` | `npm test` | `npm run test:privacy`, `npm run test:stress`, `npm run test:push` |
 | `public/ui/give.js`, `models.js` examples | `npm run test:styles` | `npm run test:asks`, `npm run test:layout` |
 | `public/ui/inbox.js`, `sent.js`, asking | `npm run test:asks` | `npm run test:conversation`, `npm run test:layout` |
@@ -30,7 +31,7 @@ Before saying the work is done, run all of them:
 
 ```powershell
 foreach ($s in 'test','test:privacy','test:stress','test:push','test:plans','test:peer','test:layout',
-  'test:browser','test:asks','test:styles','test:iphone','test:conversation','screenshots') {
+  'test:browser','test:asks','test:styles','test:get-echoes','test:iphone','test:conversation','screenshots') {
   $out = npm run $s 2>&1 | Out-String
   "[$s] exit=$LASTEXITCODE :: " + (($out.Trim() -split "`n" | Select-Object -Last 2) -join ' | ')
 }

@@ -25,6 +25,9 @@ export function endSync() {
   if (s.pending && !s.joined) s.pending.close();
 }
 
+// The address that opens Echoes on another phone and heads for Link this phone (see #/link).
+export const getEchoesUrl = () => `${new URL('.', location.href).href}#/link`;
+
 export function syncTitle(s) {
   if (s.role === 'join') return S.setupDone && isPeer() ? 'Sync with the home base' : 'Link this phone';
   const m = s.mode === 'link' ? memberById(s.memberId) : null;
@@ -40,7 +43,8 @@ export async function renderSync() {
   if (!ui.sync || ui.sync.role !== role) {
     endSync();
     const mode = role === 'host' && ui.linkFor && S.me?.isParent ? 'link' : 'sync';
-    ui.sync = { role, mode, memberId: mode === 'link' ? ui.linkFor : null, step: 'starting' };
+    ui.sync = { role, mode, memberId: mode === 'link' ? ui.linkFor : null, step: 'starting', pastGet: !!ui.linkSkipGet };
+    ui.linkSkipGet = false;
     drawSyncSkeleton();
     (role === 'host' ? hostFlow : joinFlow)(ui.sync).catch((err) => syncFailed(ui.sync, err));
     return;
@@ -55,6 +59,10 @@ export function drawSyncSkeleton() {
     <section class="stack narrow sync">
       <h1>${syncTitle(s)}</h1>
       <div id="sync-status" role="status" aria-live="polite"></div>
+      <div id="sync-get" class="stack center" hidden>
+        <img class="qr big-qr" alt="Code that opens Echoes on the other phone">
+        <p class="small muted get-url" id="sync-get-url"></p>
+      </div>
       <div id="sync-qr" class="stack center" hidden>
         <img class="qr big-qr" alt="Sync code for the other phone">
         <div><button type="button" class="link small" data-action="sync-copy">Copy this code instead</button></div>
@@ -98,8 +106,17 @@ export function drawSync() {
   const otherOpens = s.mode === 'link'
     ? 'open Echoes and tap <strong>Link this phone</strong>'
     : 'open Echoes and tap the sync status at the top';
+  const linking = s.mode === 'link' && memberById(s.memberId);
+  const theirs = linking ? `${esc(linking.name)}’s phone` : 'the other phone';
   const steps = {
     starting: ['', host ? 'Getting ready…' : 'Starting the camera…'],
+    // Linking someone new: first their phone needs Echoes on its Home Screen (iPhone keeps a Home
+    // Screen app's data apart from Safari's, so the link must be made in the Home Screen app).
+    get: ['', `<p class="m-0"><strong>First, put Echoes on ${theirs}.</strong></p>
+      <ol class="tips"><li>On ${theirs}, open the Camera, point it at this code and tap the link.</li>
+        <li>In Safari, tap <strong>Share</strong> ${icon('upload')}, then <strong>Add to Home Screen</strong>. Open Echoes from the Home Screen.</li>
+        <li>There, tap <strong>Link this phone</strong>. Then tap <strong>Next</strong> here.</li></ol>
+      <p class="small muted m-0">Echoes already on ${theirs}? Tap Next.</p>`],
     offer: ['', `<ol class="tips"><li>On ${s.mode === 'link' && memberById(s.memberId) ? `${esc(memberById(s.memberId).name)}’s phone` : 'the other phone'}, ${otherOpens}.</li>
       <li>Let it scan this code.</li><li>Then point this phone’s camera at the code it shows.</li></ol>`],
     scan: ['', `On the home base phone, a parent opens <strong>Family → Link phone</strong> (first time) or <strong>Sync a linked phone</strong>. Scan the code it shows.`],
@@ -116,6 +133,12 @@ export function drawSync() {
   $('sync-status').className = tone ? `notice ${tone}` : 'notice';
   $('sync-status').innerHTML = html;
 
+  const showGet = host && s.step === 'get' && s.getQr;
+  $('sync-get').hidden = !showGet;
+  if (showGet) {
+    $('sync-get').querySelector('img').src = s.getQr;
+    $('sync-get-url').textContent = s.getUrl;
+  }
   const showQr = (host && s.step === 'offer' && s.qr) || (!host && s.step === 'answer');
   $('sync-qr').hidden = !showQr;
   if (showQr) $('sync-qr').querySelector('img').src = s.qr;
@@ -128,6 +151,10 @@ export function drawSync() {
   if (scanning && s.cameraError) $('sync-status').innerHTML += `<p class="small muted">${esc(s.cameraError)}</p>`;
 
   const actions = [];
+  if (s.step === 'get') {
+    actions.push('<button type="button" class="primary" data-action="sync-get-next">Next</button>',
+      `<button type="button" data-action="sync-share-link">${navigator.share ? 'Send the link' : 'Copy the link'}</button>`);
+  }
   if (s.step === 'connected') actions.push('<button type="button" class="primary" data-action="sync-done">Done</button>');
   if (s.step === 'done' && host) {
     // After linking someone, the next step is usually linking the next person, from Family.
@@ -188,6 +215,14 @@ export async function startCamera(s, onCode) {
 
 export async function hostFlow(s) {
   const lib = await loadSyncLib();
+  if (s.mode === 'link' && !s.pastGet) {
+    // The camera and the connection wait for Next, so nothing starts while the other phone installs.
+    s.step = 'get';
+    s.getUrl = getEchoesUrl();
+    s.getQr = lib.qrDataUrl(s.getUrl);
+    drawSync();
+    return;
+  }
   s.step = 'offer';
   drawSync();
   await startCamera(s, (code) => hostAccept(s, code));

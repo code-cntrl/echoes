@@ -32,14 +32,19 @@ Others can use it in turn, link their own phone to it, or both.
 
 Use this when there is no computer to run the hub. You need the app on an **https://**
 address, because phones only use the camera and install web apps from secure pages:
-publish this folder with GitHub Pages (below) or any static host.
+it's live at **https://code-cntrl.github.io/echoes/**, or publish your own copy with GitHub Pages
+(below) or any static host.
 
 1. **Home base:** a parent opens the app on their phone, adds it to the Home Screen,
    opens it from there and sets up the family. Add everyone on **Family**.
-2. **Link a phone:** on the home base, tap **Link phone** next to the person. On
-   their phone, open the app (from its Home Screen icon) and tap **Link this phone**.
-   Their phone scans the home base's QR code and shows a reply code; the home base
-   scans that. The phone is now linked to that person.
+2. **Link a phone:** on the home base, tap **Link phone** next to the person. It starts with a
+   **Get Echoes** code: they point their iPhone's Camera at it and tap the link. Safari explains
+   to add Echoes to the Home Screen first (an iPhone keeps a Home Screen app's data apart from
+   Safari's, so the link must be made there); they open it from the Home Screen and tap **Link
+   this phone**. **Send the link** shares the same address by AirDrop or Messages instead. If
+   Echoes is already on their phone, skip it with **Next**. Then tap **Next** on the home base:
+   their phone scans its sync code and shows a reply code, the home base scans that, and the
+   phone is linked to that person.
 3. **Sync when together:** on the linked phone, tap the sync status at the top; on the
    home base, tap **Sync a linked phone** (Family, or the sign-in screen). Scan both
    ways again. Queued messages go out and the inbox updates. Until the home base taps
@@ -553,6 +558,7 @@ npm run test:asks      # headless Edge: asking for feedback, answering (grown-up
 npm run test:styles    # headless Edge: kids using every style, example ghost text, Show another
 npm run test:iphone    # headless WebKit (Safari's engine) at iPhone 15 size: hub, kid, asking, one device
 npm run test:conversation  # two iPhones (WebKit) talk to each other through the hub, start to finish
+npm run test:get-echoes    # headless Edge: the Get Echoes code on the home base, and where #/link leads
 npm run iphone         # an iPhone-sized WebKit window on the hub, to try it by hand (see above)
 npm run start:https    # the home hub over https, for notifications (see Notifications)
 npm run serve:https    # https test copy on this computer for real iPhones (see above)
@@ -646,6 +652,13 @@ replying, a reply and a promise with Mom as helper, a cheer and a tick, a questi
 and Sam writing DEAR MAN. Neither phone is reloaded: each only learns of new things when it's picked
 up again or, while it's open, from the 30-second badge refresh. It writes a two-part storyboard of
 both screens at each step to `screenshots/conversation`.
+
+`npm run test:get-echoes` needs Edge. On a home base served from a sub-path like GitHub Pages, it
+checks that Link phone starts with a QR code of the app's address plus `#/link` (decoded from the
+picture), with no camera or sync code until **Next**, then the sync code as before. It checks where
+`#/link` leads: iPhone Safari to the Add to Home Screen steps, an iPhone Home Screen app and a
+Chromebook straight to Link this phone, a device with a family to the app as usual. It writes boards
+to `screenshots/get-echoes`. `npm run test:peer` follows the whole path with two phones over WebRTC.
 
 For agents and contributors: [AGENTS.md](AGENTS.md) has the house rules, [docs/design.md](docs/design.md)
 the design contract, and [.agents/skills](.agents/skills/README.md) the agent skills: design and UI,
