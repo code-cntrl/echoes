@@ -99,10 +99,12 @@ private name.
 
 ### Hosting on GitHub Pages
 
-`.github/workflows/pages.yml` runs the tests and publishes `public/` when you start it
-(**Actions → Deploy to GitHub Pages → Run workflow**); the file says how to run it on every push
-to `main` instead. In the repository, open **Settings → Pages** and set **Source** to
-**GitHub Actions**. The app is then at `https://<you>.github.io/<repo>/`. Only the
+Echoes is live at **https://code-cntrl.github.io/echoes/**: open it in Safari on an iPhone and tap
+**Share → Add to Home Screen**. No computer or certificate is needed; it runs as a phone home base.
+
+`.github/workflows/pages.yml` runs the tests and publishes `public/` whenever `main` is pushed, or
+when started by hand (**Actions → Deploy to GitHub Pages → Run workflow**). For your own copy, open
+**Settings → Pages** in the repository and set **Source** to **GitHub Actions**. The app is then at `https://<you>.github.io/<repo>/`. Only the
 app's code is published; each family's messages stay on their phones. Free GitHub
 Pages needs a public repository.
 
