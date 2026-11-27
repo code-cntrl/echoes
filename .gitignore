@@ -1,0 +1,5 @@
+node_modules/
+data/
+screenshots/
+# Diagram sources made with another project's tool; only the rendered images are shared.
+docs/architecture/*.html

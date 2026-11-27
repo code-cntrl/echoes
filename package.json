@@ -1,0 +1,38 @@
+{
+  "name": "echoes",
+  "version": "1.0.0",
+  "description": "A locally hosted website where family members give each other kind, constructive, optionally anonymous feedback.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/",
+    "screenshots": "node scripts/screenshots.mjs",
+    "test:browser": "node scripts/theme-check.mjs",
+    "vendor": "node scripts/vendor.mjs",
+    "test:peer": "node scripts/peer-check.mjs",
+    "serve:https": "node scripts/serve-https.mjs",
+    "test:plans": "node scripts/plans-check.mjs",
+    "test:layout": "node scripts/layout-check.mjs",
+    "start:https": "node scripts/start-https.mjs",
+    "test:push": "node scripts/push-check.mjs",
+    "test:push-live": "node scripts/push-live-check.mjs",
+    "test:privacy": "node scripts/privacy-check.mjs",
+    "test:stress": "node scripts/stress-check.mjs",
+    "test:asks": "node scripts/asks-check.mjs",
+    "test:styles": "node scripts/styles-check.mjs",
+    "test:iphone": "node scripts/iphone-check.mjs",
+    "iphone": "node scripts/iphone.mjs",
+    "test:conversation": "node scripts/conversation-check.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.1"
+  },
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "qrcode-generator": "^2.0.4"
+  }
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- The same strict policy the hub sends, for copies served from a static host (GitHub Pages). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#eef1f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Feedback">
+  <title>Echoes</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <script src="theme-init.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/inbox"><img src="icons/icon.svg" alt="" class="brand-mark"> <span id="family-name">Echoes</span></a>
+    <nav id="nav" aria-label="Main"></nav>
+    <div id="me" class="me-area"></div>
+    <button id="theme-toggle" class="icon-btn" type="button" title="Appearance" aria-label="Appearance" aria-expanded="false" aria-controls="appearance"></button>
+    <div id="appearance" class="appearance card" role="dialog" aria-label="Appearance" hidden></div>
+  </header>
+  <div id="banner" class="banner" role="status" hidden></div>
+  <main id="app" tabindex="-1"><p class="muted">Loading…</p></main>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
