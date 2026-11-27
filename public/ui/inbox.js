@@ -1,7 +1,7 @@
 // The Inbox: cards, the reading pane, replies and reactions, the break before replying.
 import { CALM_REACTIONS, COOL_OFF_MINUTES } from '../shared/plans.js';
 import { REACTIONS, app, emptyState, esc, formatDate, icon, names, shortDate } from './dom.js';
-import { api, isKid, modelById, ui } from './state.js';
+import { api, forOthers, isKid, modelById, questionFor, ui } from './state.js';
 
 export function renderFieldValues(modelId, fields) {
   const model = modelById(modelId);
@@ -82,7 +82,7 @@ export function cardBody(f) {
   const left = calmLeft(f);
   return `
         <div class="fb-body">
-          ${f.askWhat ? `<p class="status-line mt-0">${icon('ask')} An answer to your question: “${esc(f.askWhat)}”</p>` : ''}
+          ${f.askWhat ? `<p class="status-line mt-0">${icon('ask')} ${f.askBy ? `${esc(f.askBy.name)} asked for feedback for you: “${esc(f.askWhat)}”` : `An answer to your question: “${esc(f.askWhat)}”`}</p>` : ''}
           ${renderFieldValues(f.model, f.fields)}
           ${left ? calmPanel(f, left) : ''}
           <div class="reactions" role="group" aria-label="React">
@@ -144,17 +144,26 @@ export function responsesSection(responses) {
     <span class="label">Messages</span>`;
 }
 
-// Questions people asked you about something they did, at the top of the Inbox. On wide screens the
-// row opens the question in the reading pane; narrower ones open it in place. Both can answer or
-// put it aside.
-const askDetails = (a) => `
-      <div class="fb-field"><div class="k">What ${esc(a.from.name)} did</div><div class="v">${esc(a.what)}</div></div>
+// Questions people asked you about something they did, or someone else did, at the top of the Inbox.
+// On wide screens the row opens the question in the reading pane; narrower ones open it in place.
+// Both can answer or put it aside.
+const forNames = (a) => esc(names(questionFor(a).map((m) => m.name)));
+function askDetails(a) {
+  const them = questionFor(a);
+  const others = forOthers(a);
+  // Asked for themselves and others ("You too"), the asker reads every answer like the rest.
+  const askerReads = them.some((m) => m.id === a.from.id);
+  const goesTo = others ? ` It goes to ${forNames(a)}.` : '';
+  return `
+      <div class="fb-field"><div class="k">What ${forNames(a)} did</div><div class="v">${esc(a.what)}</div></div>
       <div class="fb-field"><div class="k">What would help most</div><div class="v">${esc(a.helpLabel)}</div></div>
       <div class="row mt-1"><button type="button" class="primary" data-action="answer-ask" data-id="${Number(a.id)}">Answer with ${esc(a.modelName)}</button>
         <button type="button" class="link" data-action="dismiss-ask" data-id="${Number(a.id)}">Not now</button></div>
       <p class="status-line">${a.anonymous
-        ? `You can answer without your name: ${esc(a.from.name)} asked ${Number(a.count)} people.`
-        : `${esc(a.from.name)} sees your answer with your name, like any message.`} There’s no rush.</p>`;
+        ? `You can answer without your name: ${esc(a.from.name)} asked ${Number(a.count)} people.${goesTo}`
+        : others ? `${forNames(a)} ${them.length === 1 ? 'gets' : 'get'} your answer with your name, like any message.${askerReads ? '' : ` ${esc(a.from.name)} sees that you answered, not what you said.`}`
+          : `${esc(a.from.name)} sees your answer with your name, like any message.`} There’s no rush.</p>`;
+}
 
 export function questionsSection(asks, wide) {
   if (!asks.length) return '';
@@ -164,7 +173,7 @@ export function questionsSection(asks, wide) {
         <span class="avatar">${esc(a.from.emoji)}</span>
         <span class="grow"><span class="title">${esc(a.from.name)} <span class="muted">asked you</span></span>
           <span class="what">“${esc(a.what)}”</span>
-          <span class="sub">${esc(a.modelEmoji)} ${esc(a.modelName)} · ${esc(a.helpLabel.toLowerCase())}</span></span>
+          <span class="sub">${forOthers(a) ? `For ${forNames(a)} · ` : ''}${esc(a.modelEmoji)} ${esc(a.modelName)} · ${esc(a.helpLabel.toLowerCase())}</span></span>
         <span class="end"><span class="pill new">Answer</span>${icon('chevron', 'chev')}</span>
       </button>${!wide && open ? `<div class="ask-detail">${askDetails(a)}</div>` : ''}</li>`;
   };

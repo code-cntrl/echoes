@@ -186,3 +186,145 @@ test('two answers sent at the same moment count once', async () => {
   assert.deepEqual(store.getAsk(q.id).done, [dad.id]);
   assert.equal((await by(ava)('GET', '/api/asks')).mine[0].answered, 1);
 });
+
+// ---------- asking for someone else (Dad asks the family to give Mom and Ava feedback) ----------
+
+const dinner = (extra = {}) => ({ what: 'Cooked Thanksgiving dinner.', help: 'well', model: 'glow-grow', ...extra });
+const praise = { model: 'glow-grow', fields: { glow: 'The turkey was perfect.', grow: 'Make extra stuffing next year.' } };
+
+test('asking for someone else: they aren’t asked, Everyone leaves them out, and they aren’t told yet', async () => {
+  const fam = await family();
+  const dad = fam.by(fam.dad);
+  const forThem = { forIds: [fam.mom.id, fam.ava.id] };
+  await assert.rejects(dad('POST', '/api/asks', dinner({ forIds: [], toIds: [fam.sam.id] })), /Choose who the feedback is for/);
+  await assert.rejects(dad('POST', '/api/asks', dinner({ forIds: [999], toIds: [fam.sam.id] })), { status: 404 });
+  await assert.rejects(dad('POST', '/api/asks', dinner({ ...forThem, toIds: [fam.sam.id, fam.mom.id] })), /for Mom, so Mom can’t be asked/);
+  await assert.rejects(dad('POST', '/api/asks', dinner({ ...forThem, toIds: [fam.sam.id], what: ' ' })), /Say what they did/);
+  await assert.rejects(dad('POST', '/api/asks', dinner({ forIds: [fam.mom.id, fam.ava.id, fam.sam.id], to: 'everyone' })), /nobody else to ask/);
+
+  fam.pinged.length = 0;
+  const res = await dad('POST', '/api/asks', dinner({ ...forThem, to: 'everyone' }));
+  assert.deepEqual([res.audience, res.count, res.forCount], ['everyone', 1, 2], 'Everyone: the household, minus Dad and the people it’s for');
+  assert.deepEqual(fam.pinged, [fam.sam.id], 'only the person asked is told something is new');
+  const [q] = (await fam.by(fam.sam)('GET', '/api/asks')).forMe;
+  assert.deepEqual([q.from.name, q.for.map((m) => m.name), q.what], ['Dad', ['Mom', 'Ava'], 'Cooked Thanksgiving dinner.']);
+  for (const them of [fam.mom, fam.ava]) {
+    assert.deepEqual((await fam.by(them)('GET', '/api/asks')).forMe, [], `${them.name} isn’t asked`);
+    assert.equal((await fam.by(them)('GET', '/api/state')).me.asks, 0, `and ${them.name}’s badge doesn’t give it away`);
+  }
+  // A guest can be who it's for (a grandparent who cooked), like anyone in the family.
+  await dad('POST', '/api/asks', dinner({ forIds: [fam.nana.id], toIds: [fam.sam.id] }));
+});
+
+test('answers for someone else go to them together; the asker sees who answered, never what', async () => {
+  const fam = await family();
+  const dad = fam.by(fam.dad);
+  const { id } = await dad('POST', '/api/asks', dinner({ forIds: [fam.mom.id, fam.ava.id], toIds: [fam.sam.id, fam.nana.id] }));
+  const sam = fam.by(fam.sam);
+  await assert.rejects(sam('POST', '/api/feedback', { toIds: [fam.dad.id], askId: id, ...praise }), /everyone the feedback is for, together/);
+  await assert.rejects(sam('POST', '/api/feedback', { toIds: [fam.mom.id], askId: id, ...praise }), /everyone the feedback is for, together/, 'not just one of them');
+  fam.pinged.length = 0;
+  const sent = await sam('POST', '/api/feedback', { toIds: [fam.mom.id, fam.ava.id], askId: id, ...praise });
+  assert.deepEqual([sent.audience, sent.count], ['some', 2]);
+  assert.deepEqual(fam.pinged.sort(), [fam.mom.id, fam.ava.id].sort(), 'Mom and Ava are told, Dad isn’t');
+
+  for (const [them, other] of [[fam.mom, 'Ava'], [fam.ava, 'Mom']]) {
+    const [msg] = await fam.by(them)('GET', '/api/inbox');
+    assert.deepEqual([msg.from.name, msg.askWhat, msg.askBy?.name, msg.others.map((m) => m.name)], ['Sam', 'Cooked Thanksgiving dinner.', 'Dad', [other]],
+      `${them.name} sees Dad asked for it, and that it went to ${other} too`);
+  }
+  assert.deepEqual((await dad('GET', '/api/inbox')).filter((f) => f.askId || f.askWhat), [], 'nothing in Dad’s Inbox');
+  const [mine] = (await dad('GET', '/api/asks')).mine;
+  assert.deepEqual([mine.for.map((m) => m.name), mine.recipients.map((m) => m.name), mine.answered, mine.answeredBy.map((m) => m.name)],
+    [['Mom', 'Ava'], ['Sam', 'Nana'], 1, ['Sam']], 'one answer to two people counts once');
+  const everythingDadSees = JSON.stringify([await dad('GET', '/api/asks'), await dad('GET', '/api/inbox'), await dad('GET', '/api/sent'), await dad('GET', '/api/responses')]);
+  assert.ok(!everythingDadSees.includes('turkey'), 'Dad never sees what the answers say');
+
+  // Mom takes it out of her Inbox; Ava still has it, so it still counts.
+  await fam.by(fam.mom)('DELETE', `/api/feedback/${(await fam.by(fam.mom)('GET', '/api/inbox'))[0].id}`);
+  assert.equal((await dad('GET', '/api/asks')).mine[0].answered, 1);
+
+  // Ava leaves the family: answers now go to Mom alone. Then Mom leaves: the question goes.
+  await dad('DELETE', `/api/members/${fam.ava.id}`);
+  assert.deepEqual((await fam.by(fam.nana)('GET', '/api/asks')).forMe[0].for.map((m) => m.name), ['Mom']);
+  await fam.by(fam.nana)('POST', '/api/feedback', { toIds: [fam.mom.id], askId: id, ...praise });
+  await dad('DELETE', `/api/members/${fam.mom.id}`);
+  assert.deepEqual(fam.store.listAsks(), [], 'nobody left to give feedback to');
+});
+
+test('asking for yourself and someone else: answers reach both; old questions are for whoever asked', async () => {
+  const fam = await family();
+  const { id } = await fam.by(fam.ava)('POST', '/api/asks', dinner({ forIds: [fam.ava.id, fam.mom.id], toIds: [fam.dad.id, fam.sam.id] }));
+  await fam.by(fam.dad)('POST', '/api/feedback', { toIds: [fam.ava.id, fam.mom.id], askId: id, ...praise });
+  const [toAva] = await fam.by(fam.ava)('GET', '/api/inbox');
+  const [toMom] = await fam.by(fam.mom)('GET', '/api/inbox');
+  assert.deepEqual([toAva.askWhat, toAva.askBy], ['Cooked Thanksgiving dinner.', null], 'Ava asked: an answer to her question');
+  assert.equal(toMom.askBy.name, 'Ava');
+  // Kids are protected as usual: hurtful words to a kid are refused, answer or not.
+  const forSam = await fam.by(fam.mom)('POST', '/api/asks', dinner({ forIds: [fam.sam.id], toIds: [fam.dad.id] }));
+  await assert.rejects(fam.by(fam.dad)('POST', '/api/feedback', { toIds: [fam.sam.id], askId: forSam.id, model: 'glow-grow', fields: { glow: 'Nice.', grow: 'Stop being so stupid.' } }), { status: 422 });
+
+  // A question saved before there was a choice loads as one for whoever asked it.
+  const doc = fam.store.raw();
+  const old = { ...doc, asks: [{ id: 50, fromId: fam.ava.id, audience: 'one', toIds: [fam.dad.id], what: 'Old', help: 'well', model: 'glow-grow', anonymous: false, createdAt: new Date().toISOString(), done: [] }] };
+  const reloaded = createDocStore(JSON.parse(JSON.stringify(old)));
+  assert.deepEqual(reloaded.getAsk(50).forIds, [fam.ava.id]);
+});
+
+test('anonymous answers for someone else: 3+ asked, all anonymous to them, and the asker counts only what has arrived', async () => {
+  const app = createApp({ dataPath: ':memory:', anonymousHoldMs: [200, 200] });
+  await new Promise((r) => app.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${app.address().port}`;
+  const client = () => {
+    let cookie = '';
+    return async (method, path, body) => {
+      const res = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(cookie && { cookie }) }, body: method === 'GET' ? undefined : JSON.stringify(body ?? {}) });
+      const set = res.headers.get('set-cookie');
+      if (set) cookie = set.split(';')[0];
+      const data = await res.json();
+      if (!res.ok) throw Object.assign(new Error(data.error), { status: res.status });
+      return data;
+    };
+  };
+  try {
+    const mom = client();
+    await mom('POST', '/api/setup', { name: 'Mom' });
+    const ids = {};
+    for (const [name, role] of [['Dad', 'adult'], ['Ava', 'adult'], ['Sam', 'kid'], ['Leo', 'adult']]) ids[name] = (await mom('POST', '/api/members', { name, role })).id;
+    const as = async (id) => { const c = client(); await c('POST', '/api/login', { memberId: id }); return c; };
+    const dad = await as(ids.Dad);
+    await assert.rejects(dad('POST', '/api/asks', dinner({ forIds: [ids.Ava], toIds: [ids.Sam, ids.Leo], anonymous: true })), /3 or more people/);
+    const { id } = await dad('POST', '/api/asks', dinner({ forIds: [ids.Ava], to: 'everyone', anonymous: true }));
+    const sam = await as(ids.Sam);
+    await assert.rejects(sam('POST', '/api/feedback', { toIds: [ids.Ava], askId: id, ...praise }), /without names/);
+    await sam('POST', '/api/feedback', { toIds: [ids.Ava], askId: id, anonymous: true, ...praise });
+
+    let [mine] = (await dad('GET', '/api/asks')).mine;
+    assert.deepEqual([mine.answered, mine.answeredBy], [0, null], 'not counted while held, and never who');
+    await new Promise((r) => setTimeout(r, 300));
+    [mine] = (await dad('GET', '/api/asks')).mine;
+    assert.deepEqual([mine.answered, mine.answeredBy], [1, null]);
+    const ava = await as(ids.Ava);
+    const [msg] = await ava('GET', '/api/inbox');
+    assert.deepEqual([msg.anonymous, msg.from, msg.askBy.name], [true, null, 'Dad']);
+  } finally {
+    app.closeAllConnections();
+    app.close();
+  }
+});
+
+test('an anonymous question counts only people who can still answer: ended guest passes close it', async () => {
+  const fam = await family();
+  const mom = fam.by(fam.mom);
+  const gramps = await mom('POST', '/api/members', { name: 'Gramps', role: 'adult', guest: true });
+  const q = await mom('POST', '/api/asks', ask({ toIds: [fam.sam.id, fam.nana.id, gramps.id], anonymous: true }));
+  assert.equal((await fam.by(fam.sam)('GET', '/api/asks')).forMe[0].count, 3);
+  for (const g of [fam.nana, gramps]) await mom('PATCH', `/api/members/${g.id}`, { guest: true, guestUntil: '2000-01-01' });
+  assert.deepEqual((await fam.by(fam.sam)('GET', '/api/asks')).forMe, [], 'only Sam can still answer: too few to hide among, so it closes');
+  await assert.rejects(fam.by(fam.sam)('POST', '/api/feedback', { toIds: [fam.mom.id], askId: q.id, anonymous: true, ...glow }), /isn’t open any more/);
+  assert.equal((await mom('GET', '/api/asks')).mine[0].closed, true);
+  await mom('PATCH', `/api/members/${fam.nana.id}`, { guest: true, guestUntil: '2999-01-01' });
+  assert.deepEqual((await fam.by(fam.sam)('GET', '/api/asks')).forMe, [], 'two who can answer: still closed');
+  await mom('PATCH', `/api/members/${gramps.id}`, { guest: true, guestUntil: '2999-01-01' });
+  assert.equal((await fam.by(fam.sam)('GET', '/api/asks')).forMe[0].count, 3, 'three again: open, and Sam is told 3');
+});

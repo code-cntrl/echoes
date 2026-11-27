@@ -109,12 +109,16 @@ export async function createPeerClient({ storage, now = () => new Date() }) {
     const members = rec.cache.state?.members || [];
     const toAsk = (item, extra) => {
       const b = item.body;
-      const ids = b.to === 'everyone' ? members.filter((m) => m.id !== rec.link?.member.id && m.active && !m.guest).map((m) => m.id) : b.toIds || [];
+      const forIds = Array.isArray(b.forIds) && b.forIds.length ? b.forIds.map(Number) : [rec.link?.member.id];
+      const ids = b.to === 'everyone'
+        ? members.filter((m) => m.id !== rec.link?.member.id && m.active && !m.guest && !forIds.includes(m.id)).map((m) => m.id) : b.toIds || [];
       const model = getModel(b.model);
+      const person = (id) => members.find((m) => m.id === id);
       return {
         id: item.id, what: b.what, help: b.help, helpLabel: helpLabel(b.help), model: b.model, modelName: model?.name || b.model, modelEmoji: model?.emoji || '💬',
-        anonymous: !!b.anonymous, createdAt: item.createdAt, answered: 0, answeredBy: b.anonymous ? null : [],
-        recipients: ids.map((id) => members.find((m) => m.id === id)).filter(Boolean).map(brief), ...extra,
+        anonymous: !!b.anonymous, audience: b.to === 'everyone' ? 'everyone' : ids.length > 1 ? 'some' : 'one', createdAt: item.createdAt, answered: 0, answeredBy: b.anonymous ? null : [],
+        for: forIds.map(person).filter(Boolean).map(brief),
+        recipients: ids.map(person).filter(Boolean).map(brief), ...extra,
       };
     };
     const isAsk = (i) => i.method === 'POST' && i.path === '/api/asks';
@@ -160,7 +164,7 @@ export async function createPeerClient({ storage, now = () => new Date() }) {
       if (path === '/api/asks') {
         const res = checkAsk({ me: state.me, members: state.members, body, allowAnonymous: state.family.allowAnonymous });
         await queue(method, path, body, op);
-        return { queued: true, audience: res.audience, count: res.recipients.length, anonymous: res.anonymous };
+        return { queued: true, audience: res.audience, count: res.recipients.length, forCount: res.forIds.length, anonymous: res.anonymous };
       }
       const askId = Number(path.match(/\/api\/asks\/(\d+)/)[1]);
       if (method === 'DELETE') {
@@ -179,7 +183,9 @@ export async function createPeerClient({ storage, now = () => new Date() }) {
       if (body.askId != null) {
         const q = rec.cache.asks.forMe.find((a) => a.id === Number(body.askId));
         if (!q) throw new HttpError(404, 'This question isn’t open any more.');
-        checkAnswer({ ask: { fromId: q.from.id, anonymous: !!q.anonymous, answerModel: q.model, count: q.count }, recipients: res.recipients, model: res.model, anonymous: res.anonymous });
+        // Who it's for: the asker, unless they asked for someone else (an older home base doesn't say).
+        const forIds = (q.for?.length ? q.for : [q.from]).map((m) => m.id);
+        checkAnswer({ ask: { fromId: q.from.id, forIds, anonymous: !!q.anonymous, answerModel: q.model, count: q.count }, recipients: res.recipients, model: res.model, anonymous: res.anonymous });
         rec.cache.asks.forMe = rec.cache.asks.forMe.filter((a) => a.id !== q.id);
       }
       await queue(method, path, body, op);

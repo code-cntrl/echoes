@@ -663,3 +663,34 @@ test('two devices change the same thing apart: first open counts, last reaction 
   assert.equal(ipad.client.status().failed, 0);
   assert.equal((await ipad.client.api('GET', '/api/plans')).mine.length, 1, 'and it shows the plan made on the phone');
 });
+
+test('a question for someone else on linked phones: asked apart, answered apart, checked the same way', async () => {
+  const hb = await homeBase();
+  const dad = await linkPhone(hb, hb.dad);
+  const sam = await linkPhone(hb, hb.sam);
+  dad.client.disconnected();
+  const dinner = { what: 'Mom cooked Thanksgiving dinner.', help: 'well', model: 'kids', forIds: [hb.mom.id] };
+  await assert.rejects(dad.client.api('POST', '/api/asks', { ...dinner, toIds: [hb.mom.id] }), /for Mom, so Mom can’t be asked/);
+  const res = await dad.client.api('POST', '/api/asks', { ...dinner, to: 'everyone' });
+  assert.deepEqual([res.queued, res.count, res.forCount], [true, 1, 1], 'Everyone leaves Mom out: only Sam is asked');
+  const [pending] = (await dad.client.api('GET', '/api/asks')).mine;
+  assert.deepEqual([pending.pending, pending.for.map((m) => m.name), pending.recipients.map((m) => m.name)], [true, ['Mom'], ['Sam']]);
+  assert.equal((await sync(hb, dad)).failed.length, 0);
+
+  await sync(hb, sam);
+  sam.client.disconnected();
+  const [q] = (await sam.client.api('GET', '/api/asks')).forMe;
+  assert.deepEqual([q.from.name, q.for.map((m) => m.name)], ['Dad', ['Mom']]);
+  await assert.rejects(sam.client.api('POST', '/api/feedback', { toIds: [hb.dad.id], askId: q.id, ...kidNote('Yum') }), /everyone the feedback is for/);
+  await sam.client.api('POST', '/api/feedback', { toIds: [hb.mom.id], askId: q.id, ...kidNote('The pie was the best') });
+  assert.deepEqual((await sam.client.api('GET', '/api/asks')).forMe, [], 'answered: it leaves Sam’s Inbox here too');
+  assert.equal((await sync(hb, sam)).failed.length, 0);
+
+  hb.as(hb.mom.id);
+  const [msg] = await hb.call('GET', '/api/inbox');
+  assert.deepEqual([msg.from.name, msg.fields.happened, msg.askBy.name, msg.askWhat], ['Sam', 'The pie was the best', 'Dad', 'Mom cooked Thanksgiving dinner.']);
+  await sync(hb, dad);
+  dad.client.disconnected();
+  const [mine] = (await dad.client.api('GET', '/api/asks')).mine;
+  assert.deepEqual([mine.answered, mine.answeredBy.map((m) => m.name)], [1, ['Sam']]);
+});

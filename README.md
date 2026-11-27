@@ -395,14 +395,17 @@ one to jump to that message in Sent; opening Sent or **Mark all as seen** clears
 ## Asking for feedback
 
 Feedback doesn't have to wait for someone to think of it. On **Give**, switch from **Give** to
-**Ask** to ask about something you did:
+**Ask** to ask about something you did, or to gather feedback for someone else:
 
-1. **Your question:** what you did ("I ran the bake sale stall on Saturday", up to 300
+1. **Who is it for?** **Me** (the usual), or **Someone else**: tap everyone it's for, like Mom
+   and Ava who cooked Thanksgiving dinner (and **You too** if you did it together).
+2. **Your question:** what you did ("I ran the bake sale stall on Saturday", up to 300
    characters) and what would help most: **What went well**, **One thing to try** or **Both**.
-2. **Ask:** one person, a few people or everyone (not guests).
-3. **How should they answer?** Any feedback style. Everyone answers in it, kids included; if you
+3. **Ask:** one person, a few people or everyone (not guests). Whoever it's for can't be asked;
+   **Everyone** means everyone else.
+4. **How should they answer?** Any feedback style. Everyone answers in it, kids included; if you
    pick a style made for grown-ups and ask a kid, a note suggests an easier one.
-4. **Send it:** when you ask **3 or more people** (and the family allows anonymous feedback),
+5. **Send it:** when you ask **3 or more people** (and the family allows anonymous feedback),
    you can let them answer anonymously. Then every answer is anonymous and uses the style you
    picked, so neither a name nor a style points to anyone. (When answers carry names, people
    may answer in another style if they prefer.)
@@ -420,6 +423,24 @@ waiting). When answers may be anonymous, you only see how many have arrived. **S
 the question out of everyone's Inbox; answers that already arrived stay. On a linked phone,
 questions, answers and Not now made apart are checked the same way and sent at the next sync.
 The rules are in `public/shared/asks.js` and `public/shared/core.js`.
+
+### Asking for someone else
+
+Dad wants Mom and Ava to hear how good Thanksgiving dinner was. He switches to **Ask**, picks
+**Someone else**, taps Mom and Ava, writes "Cooked Thanksgiving dinner." and asks Sam and Leo.
+
+- Sam and Leo see "Dad asked you … For Mom and Ava" in **Questions for you**. **Answer with …**
+  opens Give addressed to Mom and Ava together; it counts as an answer only when it goes to them.
+- Mom and Ava aren't told when Dad asks, so it can be a surprise. Each answer arrives in their
+  Inbox saying "Dad asked for feedback for you", and they can react, reply or make a plan from it
+  like any message.
+- Dad never sees what the answers say: they're Mom's and Ava's. **Sent** shows who it's for, who
+  was asked, and who has answered (or, when answers may be anonymous, how many have arrived). If
+  Dad is one of the people it's for (**You too**), the answers come to him as well.
+- The same rules hold: anonymous answers need 3 or more people asked, all use one style and are
+  held like any anonymous message. Kids are protected from hurtful words, answer or not. If
+  someone it's for leaves the family, answers go to the others; with nobody left, the question
+  goes.
 
 ## After feedback arrives: a break, then a plan
 
@@ -547,7 +568,8 @@ else below only makes guessing harder.
   the question out of their Inbox; that list is never shown to the asker. Every answer to such a
   question is anonymous and in the style asked for, because one named answer, or one answer in a
   different style, would show who wrote the others. If anonymous feedback is turned off,
-  or removing someone leaves fewer than 3 people asked, the question closes.
+  or removing someone (or a guest pass ending) leaves fewer than 3 people who can still answer,
+  the question closes; people answering are told only how many can.
 
 ## Privacy and permissions
 
@@ -594,7 +616,7 @@ npm run test:push      # headless Edge: notifications on, a ping, the service wo
 npm run test:push-live # optional, online: one real ping through Microsoft's push service
 npm run test:privacy   # headless Edge: what one person can learn about another; what a shared device leaves behind
 npm run test:stress    # a big family, thousands of messages at once, PIN guessing, hostile bodies, a long inbox
-npm run test:asks      # headless Edge: asking for feedback, answering (grown-up and kid), Not now, anonymity
+npm run test:asks      # headless Edge: asking for feedback (for yourself or someone else), answering, Not now, anonymity
 npm run test:styles    # headless Edge: kids using every style, example ghost text, Show another
 npm run test:iphone    # headless WebKit (Safari's engine) at iPhone 15 size: hub, kid, asking, one device
 npm run test:conversation  # two iPhones (WebKit) talk to each other through the hub, start to finish
@@ -678,6 +700,10 @@ held answers aren't counted until they show, and Sent never names anyone. **Stop
 Inbox. It also asks and answers on one shared device and reloads, and checks there's no sideways
 scrolling. It writes dark-above-light boards for asking, a question arriving, answering, Sent, and
 asking and answering without names, at phone, foldable and desktop sizes, to `screenshots/asks`.
+Then Dad asks Sam and Leo to give Mom and Ava feedback on Thanksgiving dinner: Mom and Ava can't be
+asked and aren't told, Everyone means everyone else, Sam's answer goes to both of them saying Dad
+asked for it, and Dad's Sent shows "Sam answered · waiting for Leo" but never what Sam said. Its
+boards show the Ask screen, the question and the answer.
 
 `npm run test:styles` needs Edge. A kid sees every style, kid-friendly ones first, gets the hint on
 DEAR MAN with a kid's example, moves through the examples (kept on reload, wrapping round) and sends

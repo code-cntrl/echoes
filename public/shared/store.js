@@ -12,7 +12,7 @@ export function emptyDoc() {
     feedback: [],
     // Plans people made from feedback they received (see plans.js).
     plans: [],
-    // Questions people asked others about something they did (see asks.js). done: who answered or
+    // Questions people asked others about something they (or forIds: others) did (see asks.js). done: who answered or
     // said Not now, so it leaves their Inbox (never shown to the asker when answers may be anonymous).
     asks: [],
     seq: { member: 0, feedback: 0, group: 0, plan: 0, ask: 0 },
@@ -35,7 +35,8 @@ function normalize(doc) {
     members: Array.isArray(d.members) ? d.members : [],
     feedback: Array.isArray(d.feedback) ? d.feedback : [],
     plans: Array.isArray(d.plans) ? d.plans : [],
-    asks: Array.isArray(d.asks) ? d.asks : [],
+    // A question saved before it could be for someone else is for whoever asked it.
+    asks: Array.isArray(d.asks) ? d.asks.map((a) => (Array.isArray(a.forIds) && a.forIds.length ? a : { ...a, forIds: [a.fromId] })) : [],
     seq: { ...base.seq, ...(d.seq || {}) },
     hub: {
       sessions: { ...(d.hub?.sessions || {}) }, invites: { ...(d.hub?.invites || {}) },
@@ -120,13 +121,15 @@ export function createDocStore(initial, persist = async () => {}) {
         if (p.helperId === id) p.helperId = null;
         p.cheers = p.cheers.filter((c) => c.fromId !== id);
       }
-      // Their questions go; on others' questions they are no longer asked.
+      // Their questions go; on others' questions they are no longer asked, or asked about. A
+      // question with nobody left to ask, or nobody left to give feedback to, goes too.
       doc.asks = doc.asks.filter((a) => a.fromId !== id);
       for (const a of doc.asks) {
         a.toIds = a.toIds.filter((x) => x !== id);
         a.done = a.done.filter((x) => x !== id);
+        a.forIds = a.forIds.filter((x) => x !== id);
       }
-      doc.asks = doc.asks.filter((a) => a.toIds.length);
+      doc.asks = doc.asks.filter((a) => a.toIds.length && a.forIds.length);
       for (const [k, s] of Object.entries(doc.hub.sessions)) if (s.memberId === id) delete doc.hub.sessions[k];
       for (const [k, i] of Object.entries(doc.hub.invites)) if (i.memberId === id) delete doc.hub.invites[k];
       for (const [k, p] of Object.entries(doc.hub.peers)) if (p.memberId === id) delete doc.hub.peers[k];

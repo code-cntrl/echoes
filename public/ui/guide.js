@@ -41,6 +41,7 @@ export function renderGuide() {
           <li>On <strong>${isKid() ? 'Say it' : 'Give'}</strong>, tap <strong>Ask</strong> and say what you did, like “I made dinner on Sunday”.</li>
           <li>Pick what would help most: <strong>what went well</strong>, <strong>one thing to try</strong>, or both.</li>
           <li>Their answers come to your Inbox.${isKid() ? '' : ' Ask 3 or more people and you can let them answer without their names.'}</li>
+          <li>Someone else did something great? Under <strong>Who is it for?</strong>, tap them instead of You, like Mom and Ava who cooked dinner. Their answers go to them.</li>
           <li>Asked something? It’s at the top of your Inbox. Answer when you’re ready, or tap <strong>Not now</strong>. They won’t be told.</li>
         </ul>
       </div>

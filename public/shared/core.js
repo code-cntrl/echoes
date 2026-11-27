@@ -102,13 +102,40 @@ export function checkFeedback({ me, members, body, allowAnonymous, today = local
 }
 
 /**
- * Every rule a question must pass (asking people for feedback on something you did). The home base
- * runs it when saving, and a linked phone before queueing.
+ * Who a question gathers feedback for: whoever asks (the default), or others, like two people who
+ * cooked dinner together. Answers go to them.
+ */
+function resolveFor(me, members, body, today) {
+  if (body.forIds == null) return [me];
+  const ids = [...new Set((Array.isArray(body.forIds) ? body.forIds : [body.forIds]).map(Number))];
+  if (!ids.length) throw new HttpError(400, 'Choose who the feedback is for.');
+  const people = ids.map((id) => members.find((m) => m.id === id && (m.id === me.id || activeMember(m, today))));
+  if (people.some((p) => !p)) throw new HttpError(404, 'Choose who the feedback is for.');
+  return people;
+}
+
+/** True when a question gathers feedback only for whoever asked it (the usual kind). */
+export const askIsForAsker = (forIds, fromId) => forIds.length === 1 && forIds[0] === fromId;
+
+/**
+ * Every rule a question must pass (asking people for feedback on something you did, or that someone
+ * else did). The home base runs it when saving, and a linked phone before queueing.
  */
 export function checkAsk({ me, members, body, allowAnonymous, today = localDate() }) {
-  const { audience, recipients } = resolveRecipients(me, members, body, today);
+  const forPeople = resolveFor(me, members, body, today);
+  const forIds = forPeople.map((m) => m.id);
+  let { audience, recipients } = resolveRecipients(me, members, body, today);
+  // The people it's for aren't asked: "Everyone" leaves them out, and picking one is a mistake.
+  if (audience === 'everyone') {
+    recipients = recipients.filter((r) => !forIds.includes(r.id));
+    if (!recipients.length) throw new HttpError(400, 'There’s nobody else to ask. Add more family members first.');
+  } else {
+    const them = recipients.find((r) => forIds.includes(r.id));
+    if (them) throw new HttpError(400, `The feedback is for ${them.name}, so ${them.name} can’t be asked.`);
+  }
+  const mine = askIsForAsker(forIds, me.id);
   const what = typeof body.what === 'string' ? body.what.trim() : '';
-  if (!what) throw new HttpError(400, 'Say what you did, so they know what you mean.');
+  if (!what) throw new HttpError(400, mine ? 'Say what you did, so they know what you mean.' : 'Say what they did, so everyone knows what you mean.');
   if (what.length > ASK_MAX) throw new HttpError(400, `Keep what you did to ${ASK_MAX} characters.`);
   const help = ASK_HELP.some((h) => h.id === body.help) ? body.help : 'both';
   const model = getModel(body.model);
@@ -118,17 +145,22 @@ export function checkAsk({ me, members, body, allowAnonymous, today = localDate(
   if (anonymous && recipients.length < ANON_ASK_MIN) {
     throw new HttpError(400, `Anonymous answers need ${ANON_ASK_MIN} or more people, so nobody can tell who said what.`);
   }
-  return { audience, recipients, what, help, model, anonymous };
+  return { audience, recipients, forIds, what, help, model, anonymous };
 }
 
 /**
  * The rules for an answer to a question, on top of checkFeedback's. `ask` is what the person
- * answering knows: who asked (fromId), whether answers may be anonymous, the style to answer in
- * (answerModel) and how many were asked (count). When answers may be anonymous, every answer is,
- * in the same style, so neither a name nor the style can single anyone out.
+ * answering knows: who asked (fromId), who it's for (forIds, the asker if missing), whether answers
+ * may be anonymous, the style to answer in (answerModel) and how many were asked (count). When
+ * answers may be anonymous, every answer is, in the same style, so neither a name nor the style can
+ * single anyone out.
  */
 export function checkAnswer({ ask, recipients, model, anonymous }) {
-  if (recipients.length !== 1 || recipients[0].id !== ask.fromId) throw new HttpError(400, 'An answer goes to the person who asked.');
+  const forIds = ask.forIds?.length ? ask.forIds : [ask.fromId];
+  const to = recipients.map((r) => r.id);
+  if (to.length !== forIds.length || !forIds.every((id) => to.includes(id))) {
+    throw new HttpError(400, askIsForAsker(forIds, ask.fromId) ? 'An answer goes to the person who asked.' : 'An answer goes to everyone the feedback is for, together.');
+  }
   if (!ask.anonymous) {
     if (anonymous) throw new HttpError(400, 'This question asked for answers with your name.');
     return;
@@ -266,9 +298,12 @@ export function createCore({
       replyAfter: replyAfter(f.readAt, viewer.role), planRef: planRefs.get(f.id) ?? null,
       audience: f.audience || 'one', others: null,
       from: f.anonymous ? null : brief(store.getMember(f.fromId)) || { id: null, name: 'Former member', emoji: '👋' },
-      // An answer to a question you asked shows what it answers.
+      // An answer shows what it answers, and who asked for it when that wasn't you.
       askWhat: f.askId ? store.getAsk(f.askId)?.what ?? null : null,
+      askBy: null,
     };
+    const ask = f.askId ? store.getAsk(f.askId) : null;
+    if (ask && ask.fromId !== viewerId) item.askBy = brief(store.getMember(ask.fromId)) || { id: null, name: 'Someone', emoji: '👋' };
     // Never list recipients of anonymous messages: whoever is missing from the list would be the sender.
     if (item.audience === 'some' && !f.anonymous) {
       item.others = store.feedbackInGroup(f.groupId).filter((x) => x.toId !== viewerId).map((x) => brief(store.getMember(x.toId))).filter(Boolean);
@@ -418,7 +453,7 @@ export function createCore({
     });
     // An answer to a question: it goes to whoever asked, and is anonymous when (and only when) they allowed it.
     const ask = body.askId != null ? openAskFor(me, body.askId) : null;
-    if (ask) checkAnswer({ ask: answerView(ask, me), recipients, model, anonymous });
+    if (ask) checkAnswer({ ask: answerView(ask), recipients, model, anonymous });
 
     // Anonymous: no sender id and only the date, so the time sent cannot reveal who wrote it.
     // The date is the family's local calendar date (stored at noon UTC, shown in UTC), so an
@@ -511,9 +546,13 @@ export function createCore({
 
   // ---------- asking for feedback (shared parts in asks.js) ----------
   // A question allowing anonymous answers closes if anonymous feedback is turned off or fewer than
-  // ANON_ASK_MIN people are left to ask (someone was removed): too few to hide among.
-  const answerable = (a) => !a.anonymous || (family().allowAnonymous && a.toIds.length >= ANON_ASK_MIN);
-  const answerView = (a, me) => ({ fromId: a.fromId, anonymous: !!a.anonymous, answerModel: a.model, count: a.toIds.length });
+  // ANON_ASK_MIN people are left who can answer (someone was removed, or a guest pass ended): too
+  // few to hide among. Everyone answering is told that number, never more.
+  // Who a question is for, still in the family (the asker, for questions saved before there was a choice).
+  const askFor = (a) => (a.forIds?.length ? a.forIds : [a.fromId]).map((id) => store.getMember(id)).filter((m) => m && isActive(m, today()));
+  const canAnswer = (a) => a.toIds.filter((id) => { const m = store.getMember(id); return m && isActive(m, today()); }).length;
+  const answerable = (a) => askFor(a).length > 0 && (!a.anonymous || (family().allowAnonymous && canAnswer(a) >= ANON_ASK_MIN));
+  const answerView = (a) => ({ fromId: a.fromId, forIds: askFor(a).map((m) => m.id), anonymous: !!a.anonymous, answerModel: a.model, count: canAnswer(a) });
 
   // Questions waiting for this person: not answered, not put aside, from someone still in the family.
   function asksForMe(me) {
@@ -525,8 +564,8 @@ export function createCore({
       .map(({ a, from }) => {
         const model = a.model;
         return {
-          id: a.id, from: brief(from), what: a.what, help: a.help, helpLabel: helpLabel(a.help), model, ...modelInfo(model),
-          anonymous: !!a.anonymous, audience: a.audience, count: a.toIds.length, createdAt: a.createdAt,
+          id: a.id, from: brief(from), for: askFor(a).map(brief), what: a.what, help: a.help, helpLabel: helpLabel(a.help), model, ...modelInfo(model),
+          anonymous: !!a.anonymous, audience: a.audience, count: canAnswer(a), createdAt: a.createdAt,
         };
       });
   }
@@ -540,14 +579,19 @@ export function createCore({
   }
   // What I asked, and how many answers have arrived. Names only when answers can't be anonymous:
   // otherwise who answered, and when, would point to who wrote what. Held answers aren't counted yet.
+  // Answers for someone else go to them, so the asker sees how many and who, never what they say.
+  // One answer to two people is two messages with one groupId: it counts once.
   function myAsks(me) {
     return store.listAsks().filter((a) => a.fromId === me.id)
       .sort((x, y) => y.createdAt.localeCompare(x.createdAt) || y.id - x.id)
       .map((a) => {
-        const answers = delivered(me.id).filter((f) => f.askId === a.id);
+        const forPeople = askFor(a);
+        const seen = new Set();
+        const answers = forPeople.flatMap((m) => delivered(m.id)).filter((f) => f.askId === a.id && !seen.has(f.groupId) && seen.add(f.groupId));
         return {
           id: a.id, what: a.what, help: a.help, helpLabel: helpLabel(a.help), model: a.model, ...modelInfo(a.model),
           anonymous: !!a.anonymous, audience: a.audience, createdAt: a.createdAt, closed: !answerable(a),
+          for: forPeople.map(brief),
           recipients: a.toIds.map((id) => brief(store.getMember(id))).filter(Boolean),
           answered: answers.length,
           answeredBy: a.anonymous ? null : [...new Set(answers.map((f) => f.fromId))].map((id) => brief(store.getMember(id))).filter(Boolean),
@@ -562,14 +606,15 @@ export function createCore({
 
   route('POST', /^\/api\/asks$/, async ({ ctx, body }) => {
     const me = requireMember(ctx);
-    const { audience, recipients, what, help, model, anonymous } = checkAsk({
+    const { audience, recipients, forIds, what, help, model, anonymous } = checkAsk({
       me, members: store.listMembers(), body, allowAnonymous: family().allowAnonymous, today: localDate(now()),
     });
+    // The people it's for aren't told yet: they find out when the answers arrive.
     const id = await store.insertAsk({
-      fromId: me.id, audience, toIds: recipients.map((r) => r.id), what, help, model: model.id, anonymous, createdAt: iso(), done: [],
+      fromId: me.id, forIds, audience, toIds: recipients.map((r) => r.id), what, help, model: model.id, anonymous, createdAt: iso(), done: [],
     });
     onActivity(recipients.map((r) => r.id));
-    return { id, audience, count: recipients.length, anonymous };
+    return { id, audience, count: recipients.length, forCount: forIds.length, anonymous };
   });
 
   // Not now: the question leaves this person's Inbox. The asker isn't told.

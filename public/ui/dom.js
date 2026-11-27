@@ -57,7 +57,7 @@ export const AUDIENCES = [
 ];
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-export const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+export const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 export const names = (list) => list.length <= 1 ? (list[0] || '') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
 
 export let toastTimer;

@@ -29,6 +29,10 @@
   newer than iOS 14 while starting, without a fallback there or a feature check. Keep
   `theme-init.js` to old-Safari syntax. Linking phones needs compression streams (iOS 16.4):
   `syncUnsupported()` in `shared/signal.js` says so. README, "Which iPhones and iPads", has the table.
+- **Questions can be for someone else.** An ask has `forIds` (the asker by default; older saved
+  questions load that way). Answers go to exactly those people, together. The asker sees who
+  answered or how many, never the answers (`myAsks` counts delivered messages across them, one per
+  group). Keep `checkAsk`/`checkAnswer` in `core.js` and their twins in `peer-client.js` in step.
 - **Line endings:** most files use CRLF. Keep them when editing.
 - **The old name.** The app was called Family Feedback. Names nobody sees keep it so existing data
   keeps working: the IndexedDB database (`family-feedback`), the backup file's `app` marker, the

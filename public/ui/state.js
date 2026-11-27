@@ -7,10 +7,10 @@ export const ui = {
   signInId: null, openCards: new Set(), editingId: null, setupEmoji: '🧑', invite: null, inbox: [], installPrompt: null,
   replyDrafts: {}, lastRouteKey: null, draftOwner: undefined, signedOutForPrivacy: false,
 };
-// mode: give or ask. ask*: a question about something you did. answering: the question being answered.
+// mode: give or ask. ask*: a question about something you (or askFor: others) did. answering: the question being answered.
 export const blankCompose = () => ({
   mode: 'give', audience: 'one', toIds: [], model: null, fields: {}, drafts: {}, anonymous: false, error: null, canConfirm: false, example: 0,
-  askWhat: '', askHelp: 'well', askModel: 'glow-grow', askAnon: false, answering: null,
+  askWhat: '', askHelp: 'well', askModel: 'glow-grow', askAnon: false, askFor: null, answering: null,
 });
 export let compose = blankCompose();
 
@@ -18,8 +18,8 @@ export let compose = blankCompose();
 export const draftKey = () => `ff-draft-${S?.me?.id}`;
 export function saveDraft() {
   if (!S?.me) return;
-  const { mode, audience, toIds, model, fields, drafts, anonymous, example, askWhat, askHelp, askModel, askAnon, answering } = compose;
-  sessionStorage.setItem(draftKey(), JSON.stringify({ mode, audience, toIds, model, fields, drafts, anonymous, example, askWhat, askHelp, askModel, askAnon, answering }));
+  const { mode, audience, toIds, model, fields, drafts, anonymous, example, askWhat, askHelp, askModel, askAnon, askFor, answering } = compose;
+  sessionStorage.setItem(draftKey(), JSON.stringify({ mode, audience, toIds, model, fields, drafts, anonymous, example, askWhat, askHelp, askModel, askAnon, askFor, answering }));
 }
 export function loadDraft() {
   try {
@@ -34,6 +34,14 @@ export function clearDraft() {
 }
 
 export const modelById = (id) => MODELS.find((m) => m.id === id);
+// Who the question being written is for: you (askFor null, the usual), or the people picked under
+// Someone else (still in the family; none yet is an empty list).
+export const askForIds = () => (compose.askFor == null ? [S.me.id]
+  : compose.askFor.filter((id) => id === S.me.id || S.members.some((m) => m.id === id && m.active)));
+export const askIsMine = (ids = askForIds()) => ids.length === 1 && ids[0] === S.me.id;
+// A question's people, as answered: who it's for (the asker, unless they asked for someone else).
+export const questionFor = (a) => (a.for?.length ? a.for : [a.from]);
+export const forOthers = (a) => { const f = questionFor(a); return !(f.length === 1 && f[0].id === a.from.id); };
 export const memberById = (id) => S.members.find((m) => m.id === Number(id));
 export const isKid = () => S?.me?.role === 'kid';
 export const isDevice = () => S?.mode === 'device';

@@ -147,7 +147,7 @@ export function renderFamily() {
       <div><button class="primary" type="submit">Save settings</button></div>
     </form>` : '';
 
-  app.innerHTML = `<section><h1>Family</h1><p class="page-sub">${esc(S.family.name)} · ${plural(S.members.length, 'person').replace('persons', 'people')}</p>
+  app.innerHTML = `<section><h1>Family</h1><p class="page-sub">${esc(S.family.name)} · ${plural(S.members.length, 'person', 'people')}</p>
     ${invitePanel()}${linkPinPanel()}<div class="cols"><div class="col">${members}${storageCard()}${notificationsSection()}</div><div class="col">${parentTools}${profile}</div></div></section>`;
   if (ui.push?.on === undefined) checkPush();
 }

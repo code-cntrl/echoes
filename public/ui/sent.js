@@ -6,6 +6,10 @@ import { renderChrome } from './router.js';
 import { S, api, isPeer, modelById, setS, ui } from './state.js';
 
 // Questions you asked: who has answered, or how many when answers may be anonymous (then never who).
+// Asked for someone else, the answers went to them: this shows that they answered, never what.
+const isForOthers = (a) => !!a.for?.length && !(a.for.length === 1 && a.for[0].id === S.me.id);
+const forLine = (a) => (isForOthers(a) ? `For ${esc(names(a.for.map((m) => (m.id === S.me.id ? 'you' : m.name))))} · ` : '');
+
 function questionsHtml(asks) {
   if (!asks.length) return '';
   const status = (a) => {
@@ -26,7 +30,7 @@ function questionsHtml(asks) {
     <ul class="list inset-icon asks-mine">${asks.map((a) => `<li><div class="item">
       <span class="icon-sq">${icon('ask')}</span>
       <span class="grow"><span class="title">“${esc(a.what)}”</span>
-        <span class="sub">${a.audience === 'everyone' ? 'To the whole family' : `To ${esc(names(a.recipients.map((m) => m.name)))}`} · ${esc(a.modelEmoji)} ${esc(a.modelName)} · ${esc(a.helpLabel.toLowerCase())}</span>
+        <span class="sub">${forLine(a)}${a.audience === 'everyone' ? (isForOthers(a) ? 'Asked everyone else' : 'To the whole family') : `${isForOthers(a) ? 'Asked' : 'To'} ${esc(names(a.recipients.map((m) => m.name)))}`} · ${esc(a.modelEmoji)} ${esc(a.modelName)} · ${esc(a.helpLabel.toLowerCase())}</span>
         <span class="sub">${status(a)}</span>
         ${a.failed ? `<button type="button" class="link small danger" data-action="discard-failed" data-id="${esc(a.id)}">Discard</button>`
           : a.pending ? '' : `<button type="button" class="link small" data-action="stop-asking" data-id="${Number(a.id)}">Stop asking</button>`}</span>

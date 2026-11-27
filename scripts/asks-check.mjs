@@ -1,7 +1,9 @@
 // Headless Edge check of asking for feedback: Ava asks Dad and Sam about something she did, Sam (a
 // kid) tries a grown-up style and answers with Kind Words, Dad puts it aside, and Ava sees who answered. Then an anonymous
 // question to everyone: answers come without names, are held like any anonymous message, and Ava
-// sees only how many arrived. Fails on any check or unexpected console error.
+// sees only how many arrived. Then Dad asks Sam and Leo to give Mom and Ava feedback on Thanksgiving
+// dinner: the answers go to Mom and Ava, and Dad sees who answered, never what. Fails on any check or
+// unexpected console error.
 //   npm run test:asks -- [outputDir]   (screenshots and dark-above-light boards go there)
 import { chromium } from 'playwright-core';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -306,6 +308,115 @@ await board('answering-anon', 'Dad', '#/inbox', async (page) => {
   check(!(await samC('GET', '/api/asks')).forMe.some((a) => /lake/.test(a.what)), 'Stop asking removes it from Sam’s Inbox');
 }
 
+// 7. Asking for someone else: Dad asks Sam and Leo to give Mom and Ava feedback on Thanksgiving dinner.
+const leo = await mom('POST', '/api/members', { name: 'Leo', emoji: '🧒', role: 'kid' });
+await as(leo.id); // welcomed, so the browser opens straight on the Inbox
+async function fillAskFor(page) {
+  await page.getByRole('radio', { name: 'Ask', exact: true }).click();
+  await page.getByRole('radio', { name: 'Someone else' }).click();
+  await page.locator('.ask-for .tile', { hasText: 'Mom' }).click();
+  await page.locator('.ask-for .tile', { hasText: 'Ava' }).click();
+  await page.fill('#ask-what', 'Cooked Thanksgiving dinner.');
+  await page.getByRole('radio', { name: /A few people/ }).click();
+  await page.locator('[data-action="pick-to"]', { hasText: 'Sam' }).click();
+  await page.locator('[data-action="pick-to"]', { hasText: 'Leo' }).click();
+}
+{
+  const { ctx, page } = await open('Dad', { hash: '#/give' });
+  await page.getByRole('radio', { name: 'Ask', exact: true }).click();
+  await page.getByRole('heading', { name: 'Ask for feedback' }).waitFor();
+  check((await page.getByRole('radio', { name: 'Me', exact: true }).getAttribute('aria-checked')) === 'true' && (await page.locator('.ask-for').count()) === 0,
+    'a question is for you unless Someone else is picked');
+  await page.getByRole('radio', { name: 'Someone else' }).click();
+  check(/Choose who it’s for/.test(await page.locator('[data-form="ask"] p').first().innerText()), 'Someone else: first choose who it’s for');
+  await page.locator('.ask-for .tile', { hasText: 'Mom' }).click();
+  await page.locator('.ask-for .tile', { hasText: 'Ava' }).click();
+  check((await page.locator('label[for="ask-what"]').innerText()) === 'What did Mom and Ava do?', 'the question asks what Mom and Ava did');
+  const askable = await page.locator('[data-action="pick-to"]').allInnerTexts();
+  check(!askable.some((t) => /Mom|Ava/.test(t)) && askable.some((t) => /Sam/.test(t)) && askable.some((t) => /Leo/.test(t)), 'Mom and Ava can’t be asked; Sam and Leo can');
+  await page.getByRole('radio', { name: /Everyone/ }).click();
+  check(/Goes to 2 people: Leo and Sam\./.test(await page.locator('.everyone').innerText()), 'Everyone means everyone else: Leo and Sam (and says people, not persons)');
+  await page.getByRole('radio', { name: /A few people/ }).click();
+  await page.locator('[data-action="pick-to"]', { hasText: 'Sam' }).click();
+  await page.locator('[data-action="pick-to"]', { hasText: 'Leo' }).click();
+  await page.fill('#ask-what', 'Cooked Thanksgiving dinner.');
+  const summary = await page.locator('[data-form="ask"] p').first().innerText();
+  check(/To Sam, Leo · for Mom and Ava · 🌱 Glow & Grow/.test(summary), `the summary says who is asked and who it’s for (${summary})`);
+  const tips = await page.locator('.tips').innerText();
+  check(/Answers go to Mom and Ava with their names/.test(tips) && /not what they said/.test(tips) && /Mom and Ava find out when the answers arrive/.test(tips),
+    'the tips say answers go to Mom and Ava, Dad sees who answered, and it’s a surprise till then');
+  await page.getByRole('button', { name: 'Ask 2 people' }).click();
+  await page.locator('#toast', { hasText: 'Their answers will go to Mom and Ava' }).waitFor();
+  const q = page.locator('.asks-mine li', { hasText: 'Thanksgiving' });
+  await q.waitFor();
+  check(/For Mom and Ava · Asked Sam and Leo/.test(await q.innerText()) && /0\/2 answered/.test(await q.innerText()), 'Sent: for Mom and Ava, asked Sam and Leo, 0 of 2 answered');
+  await ctx.close();
+}
+for (const them of [mom, avaC]) check(!(await them('GET', '/api/asks')).forMe.length && (await them('GET', '/api/state')).me.asks === 0, 'Mom and Ava aren’t asked, and nothing gives it away');
+{
+  const { ctx, page } = await open('Sam');
+  const row = page.locator('.asks .item', { hasText: 'Thanksgiving' });
+  await row.waitFor();
+  check(/Dad asked you/.test(await row.innerText()) && /For Mom and Ava/.test(await row.innerText()), 'Sam’s Inbox: Dad asked, for Mom and Ava');
+  await row.click();
+  const detail = await page.locator('.ask-detail').innerText();
+  check(/What Mom and Ava did/i.test(detail) && /Mom and Ava get your answer with your name/.test(detail) && /Dad sees that you answered, not what you said/.test(detail),
+    'the question says what they did, and who sees what');
+  await page.getByRole('button', { name: 'Answer with Glow & Grow' }).click();
+  await page.locator('.notice.answering').waitFor();
+  check(/Answering Dad:/.test(await page.locator('.notice.answering').innerText()) && /it goes to them/.test(await page.locator('.notice.answering').innerText()), 'answering Dad’s question, for them');
+  const to = await page.locator('[data-action="pick-to"].selected').allInnerTexts();
+  check(to.length === 2 && to.some((t) => /Mom/.test(t)) && to.some((t) => /Ava/.test(t)), 'the answer is addressed to Mom and Ava');
+  await page.locator('#field-glow').fill('The turkey was the best ever.');
+  await page.locator('[data-form="send"] button[type="submit"]').click();
+  await page.locator('#toast', { hasText: 'Thanks for answering' }).waitFor();
+  await page.evaluate(() => { location.hash = '#/inbox'; });
+  await page.waitForTimeout(300);
+  check((await page.locator('.asks .item', { hasText: 'Thanksgiving' }).count()) === 0, 'answered: it leaves Sam’s Inbox');
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open('Mom');
+  await page.locator('.fb-head', { hasText: 'Sam' }).first().click();
+  await page.getByText('Dad asked for feedback for you: “Cooked Thanksgiving dinner.”').waitFor();
+  check(/The turkey was the best ever/.test(await page.locator('main').innerText()), 'Mom gets Sam’s answer, saying Dad asked for it');
+  await ctx.close();
+}
+{
+  const [toAva] = (await avaC('GET', '/api/inbox')).filter((f) => f.askWhat === 'Cooked Thanksgiving dinner.');
+  check(toAva?.askBy?.name === 'Dad' && toAva.from.name === 'Sam', 'Ava gets it too');
+  const dadSees = JSON.stringify([await dadC('GET', '/api/inbox'), await dadC('GET', '/api/asks'), await dadC('GET', '/api/sent')]);
+  check(!dadSees.includes('turkey'), 'Dad never sees what the answer says');
+  const { ctx, page } = await open('Dad', { hash: '#/sent' });
+  const q = page.locator('.asks-mine li', { hasText: 'Thanksgiving' });
+  await q.waitFor();
+  check(/1\/2 answered/.test(await q.innerText()) && /Sam answered · waiting for Leo/.test(await q.innerText()), 'Dad’s Sent: Sam answered, waiting for Leo');
+  await ctx.close();
+}
+// Asked for herself and Mom ("You too"): Ava reads the answers too, and Dad is told so.
+{
+  const momId = (await mom('GET', '/api/state')).me.id;
+  await avaC('POST', '/api/asks', { forIds: [ava.id, momId], toIds: [dad.id], what: 'Painted the fence.', help: 'well', model: 'glow-grow' });
+  const { ctx, page } = await open('Dad');
+  await page.locator('.asks .item', { hasText: 'Painted the fence' }).click();
+  const detail = await page.locator('.ask-detail').innerText();
+  check(/Ava and Mom get your answer with your name/.test(detail) && !/not what you said/.test(detail), `You too: Dad isn’t told Ava won’t read it (${detail.split('\n').pop()})`);
+  await page.getByRole('button', { name: 'Answer with Glow & Grow' }).click();
+  check(/It goes to Ava and Mom together/.test(await page.locator('.notice.answering').innerText()), 'and answering says it goes to Ava and Mom together');
+  await ctx.close();
+}
+await board('ask-for', 'Dad', '#/give', async (page) => { await fillAskFor(page); await top(page); });
+await board('question-for', 'Leo', '#/inbox', async (page) => {
+  await page.locator('.asks .item', { hasText: 'Thanksgiving' }).click();
+  await page.getByRole('button', { name: 'Answer with Glow & Grow' }).waitFor();
+  await top(page);
+});
+await board('answer-for', 'Ava', '#/inbox', async (page) => {
+  await page.locator('.fb-head', { hasText: 'Sam' }).first().click();
+  await page.getByText('Dad asked for feedback for you').first().waitFor();
+  await top(page);
+});
+
 // 6. One shared device (no hub, IndexedDB): Papa asks Lily, Lily answers, and both are kept after a reload.
 {
   const PUBLIC = resolve('public');
@@ -375,6 +486,9 @@ const BOARDS = [
   ['sent', 'Sent · your questions'],
   ['ask-anon', 'Give · asking everyone, answers without names'],
   ['answering-anon', 'Give · answering without names'],
+  ['ask-for', 'Give · Dad asks for feedback for Mom and Ava'],
+  ['question-for', 'Inbox · Leo is asked, for Mom and Ava'],
+  ['answer-for', 'Inbox · Ava gets Sam’s answer, which Dad asked for'],
 ];
 const page = await (await browser.newContext({ deviceScaleFactor: 1 })).newPage();
 const boardPaths = [];

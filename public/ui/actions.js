@@ -9,7 +9,7 @@ import { afterPlanChange, renderPlans } from './plans.js';
 import { b64uBytes, currentPushSub, pushReady, updateNotifyCard } from './push.js';
 import { refresh, renderChrome } from './router.js';
 import { renderSent } from './sent.js';
-import { S, api, blankCompose, clearDraft, compose, isKid, memberById, saveDraft, setCompose, setS, ui } from './state.js';
+import { S, api, askForIds, blankCompose, clearDraft, compose, isKid, memberById, questionFor, saveDraft, setCompose, setS, ui } from './state.js';
 import { endSync, hostFlow, peerLink, renderSync, syncFailed } from './sync.js';
 import { renderSignIn, signIn, signOut } from './welcome.js';
 
@@ -103,8 +103,25 @@ export const actions = {
     saveDraft();
     renderGive();
   },
+  // Who a question is for: Me, or Someone else (then pick them, yourself too if you did it together).
+  'ask-for-mode'(el) {
+    compose.askFor = el.dataset.id === 'others' ? (compose.askFor ?? []) : null;
+    compose.toIds = compose.toIds.filter((x) => !askForIds().includes(x));
+    compose.error = null;
+    saveDraft();
+    renderGive();
+  },
+  'pick-for'(el) {
+    const id = Number(el.dataset.id);
+    const ids = askForIds();
+    compose.askFor = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+    compose.toIds = compose.toIds.filter((x) => !compose.askFor.includes(x)); // whoever it's for isn't asked
+    compose.error = null;
+    saveDraft();
+    renderGive();
+  },
   'reset-ask'() {
-    Object.assign(compose, { audience: 'one', toIds: [], askWhat: '', askHelp: 'well', askModel: 'glow-grow', askAnon: false, error: null });
+    Object.assign(compose, { audience: 'one', toIds: [], askWhat: '', askHelp: 'well', askModel: 'glow-grow', askAnon: false, askFor: null, error: null });
     saveDraft();
     renderGive();
   },
@@ -114,13 +131,18 @@ export const actions = {
     ui.openAsk = isWide() || ui.openAsk !== id ? id : null;
     await renderInbox();
   },
-  // Answer: Give, ready for the person who asked, in the style they asked for (kids: Kind Words).
+  // Answer: Give, ready for whoever the question is for (the asker, or the people they asked for),
+  // in the style they asked for.
   'answer-ask'(el) {
     const a = ui.asks.find((x) => x.id === Number(el.dataset.id));
     if (!a) return;
     const models = S.models.map((m) => m.id);
     const model = models.includes(a.model) ? a.model : null;
-    setCompose({ ...blankCompose(), audience: 'one', toIds: [a.from.id], model, answering: { id: a.id, from: a.from, what: a.what, help: a.help, anonymous: a.anonymous, model: a.model } });
+    const them = questionFor(a);
+    setCompose({
+      ...blankCompose(), audience: them.length > 1 ? 'some' : 'one', toIds: them.map((m) => m.id), model,
+      answering: { id: a.id, from: a.from, for: them, what: a.what, help: a.help, anonymous: a.anonymous, model: a.model },
+    });
     ui.openAsk = null;
     saveDraft();
     location.hash = '#/give';
